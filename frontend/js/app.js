@@ -7,9 +7,9 @@
 //  yyyy-mm-dd strings used for sorting, range checks, working-day
 //  math, etc.) is completely untouched — this only changes what is
 //  RENDERED on screen/print/PDF. Accepts a Date object, an ISO
-//  yyyy-mm-dd , or a full ISO timestamp string.
+//  yyyy-mm-dd string, or a full ISO timestamp string.
 // ═══════════════════════════════════════════════════════════
-window.fmtDMY = function (stringinput) {
+window.fmtDMY = function (input) {
   if (!input) return '—';
   var d;
   if (input instanceof Date) {
