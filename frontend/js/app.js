@@ -1466,80 +1466,6 @@ window.H1 = (function(){
 /////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////
-// [Homework H1 — Homework Repository]
-// ------------------------------------------------------------
-// Additive-only, following the exact same pattern as Sprint 3 /
-// Sprint PP-0.1 / Sprint PP-0.9 above. Adds ONE new repository —
-// homework — extending the existing Dnyanankur.Repository.BaseRepository.
-// No new storage-access pattern, no direct localStorage calls, no
-// changes to any repository or class defined above.
-//
-// STORAGE KEY: 'homework' — a new key, not reused, not duplicated.
-// Record shape (conceptual, written by a later phase — this
-// registration introduces no writer and the repository starts empty):
-//   { id ('HW'+Date.now()), cls, div, subject, academicYear,
-//     teacherId, teacher, homework, dueDate, attachment, status,
-//     createdAt (ISO string) }
-/////////////////////////////////////////////////////////////
-(function (global) {
-  "use strict";
-
-  if (!global.Dnyanankur || !Dnyanankur.Repository || !Dnyanankur.Repository.BaseRepository) {
-    console.error("[Dnyanankur:Homework] Repository layer not found — install order issue. Ensure Sprint 3 loads first.");
-    return;
-  }
-  if (Dnyanankur.Repository.homework) return; // idempotent guard
-
-  var BaseRepository = Dnyanankur.Repository.BaseRepository;
-
-  Dnyanankur.Repository.homework = new BaseRepository('homework');
-
-  Dnyanankur.Logger.info("Homework repository installed (Homework H1).");
-
-})(window);
-/////////////////////////////////////////////////////////////
-
-/////////////////////////////////////////////////////////////
-// [Homework H7 — Homework Submissions Repository]
-// ------------------------------------------------------------
-// Additive-only, the exact same pattern as Homework H1 above. Adds
-// ONE new repository — homeworkSubmissions — extending the existing
-// Dnyanankur.Repository.BaseRepository. No new storage-access
-// pattern, no WorkflowDB, no direct localStorage calls, no changes
-// to any repository or class defined above. One record per
-// student/homework pair (see submitHomework()'s own "one submission
-// per student+homework" search-before-create rule).
-//
-// STORAGE KEY: 'homework_submissions' — a new key, not reused.
-// Record shape:
-//   { id ('HWSUB'+Date.now()), homeworkId, studentId, parentId,
-//     responseText, attachmentId, attachmentName, attachmentType,
-//     attachmentSize, submittedAt, updatedAt, status }
-// cls/div/academicYear are intentionally NOT duplicated here — they
-// remain derived from the Homework record (H1) at read time, exactly
-// as the H7 brief requires.
-/////////////////////////////////////////////////////////////
-(function (global) {
-  "use strict";
-
-  if (!global.Dnyanankur || !Dnyanankur.Repository || !Dnyanankur.Repository.BaseRepository) {
-    console.error("[Dnyanankur:HomeworkSubmissions] Repository layer not found — install order issue. Ensure Sprint 3 loads first.");
-    return;
-  }
-  if (Dnyanankur.Repository.homeworkSubmissions) return; // idempotent guard
-
-  var BaseRepository = Dnyanankur.Repository.BaseRepository;
-
-  Dnyanankur.Repository.homeworkSubmissions = new BaseRepository('homework_submissions');
-
-  Dnyanankur.Logger.info("Homework Submissions repository installed (Homework H7).");
-
-})(window);
-/////////////////////////////////////////////////////////////
-// END [Homework H1 — Homework Repository]
-/////////////////////////////////////////////////////////////
-
-/////////////////////////////////////////////////////////////
 // [Sprint PP-0.2 — Parent Account Engine Repository]
 // ------------------------------------------------------------
 // Additive-only, following the exact same pattern as Sprint 3 /
@@ -9141,23 +9067,42 @@ function doLogin() {
 }
 
 // --- Forgot Password (Task 6) ---------------------------------------------------
-// [Feature 1 fix] doLogin() authenticates this form's username/password
-// against the LOCAL users/teachers store (getUsers()/getTeachers()) — it
-// never calls Supabase Auth. The previous implementation here called
-// client.auth.resetPasswordForEmail(), which only knows about Supabase
-// Auth's own email-based accounts and can never match a local username
-// account, so every attempt silently "succeeded" while doing nothing.
-// Replaced with the same honest placeholder the Parent Portal's own
-// Forgot Password modal already uses (#modal-parent-forgot-password),
-// rather than leaving a reset flow that cannot ever function. No
-// authentication logic is changed — only what this link reports.
 function doForgotPassword() {
+  const emailEl = document.getElementById('login-email');
   const errEl = document.getElementById('login-error');
-  if (!errEl) return;
+  const email = (emailEl && emailEl.value || '').trim();
 
+  errEl.style.display = 'none';
   errEl.className = 'alert alert-error';
-  errEl.textContent = 'Password reset isn\'t available from this screen yet. Please contact school administration to reset your password.';
-  errEl.style.display = 'block';
+
+  if (!email) {
+    errEl.textContent = 'Enter your email above first, then click "Forgot Password?".';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const client = Dnyanankur.Auth.getClient();
+  if (!client) {
+    errEl.textContent = 'Password reset is not available right now. Please contact school administration.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  client.auth.resetPasswordForEmail(email).then(function (result) {
+    if (result && result.error) {
+      errEl.className = 'alert alert-error';
+      errEl.textContent = 'Could not send the reset email. Please check the address and try again.';
+    } else {
+      errEl.className = 'alert alert-success';
+      errEl.textContent = 'If an account exists for that email, a password reset link has been sent.';
+    }
+    errEl.style.display = 'block';
+  }).catch(function (err) {
+    console.error('[Dnyanankur:Auth] resetPasswordForEmail failed', err);
+    errEl.className = 'alert alert-error';
+    errEl.textContent = 'Something went wrong sending the reset email. Please try again.';
+    errEl.style.display = 'block';
+  });
 }
 
 function logout() {
@@ -10045,8 +9990,6 @@ function showPage(page) {
     // it does not change who could already see the nav link.
     'accountstatements': ['principal','clerk'],
     'attendance-main':   ['principal','clerk','teacher'],
-    // --- Homework H3: Teacher Homework Authoring ---
-    'homework':          ['principal','teacher'],
     'infrastructure':    ['principal'],
     'communication':     ['principal','clerk','teacher'],
     // --- Phase 42: Finance Verification (read-only diagnostic; Principal only) ---
@@ -10083,7 +10026,6 @@ function showPage(page) {
   if (page==='backupcenter') { if (typeof backupCenterInit==='function') backupCenterInit(); }
   if (page==='analyticscenter') { if (typeof anCtrInit==='function') anCtrInit(); }
   if (page==='students') renderStudentTable();
-  if (page==='homework') { if (typeof hwAuthorInit==='function') hwAuthorInit(); }
   if (page==='attendance-main') { if (typeof attP2Init==='function') attP2Init(); if (typeof attMarkInit==='function') attMarkInit(); if (typeof attRptInit==='function') attRptInit();
     // Sprint 6.5C (Task 3/9 routing fix): #attmod-tabs marks "Dashboard" active
     // by default, but the underlying #attrpt-tab-daily panel was the one
@@ -21989,34 +21931,11 @@ function examRPLoadStatus() {
   if (!exam) return;
 
   const statusLabel = exam.isPublished ? '📢 Published' : exam.isLocked ? '🔒 Locked' : '🖊 Draft';
-  const deadlineLabel = exam.resultVisibleUntil
-    ? ('Result visible until: ' + examFormatDate(exam.resultVisibleUntil))
-    : 'Result visibility: No expiry';
   el.innerHTML = `
     <strong>${examSanitize(exam.name)}</strong><br>
     Status: ${statusLabel}<br>
     Type: ${examSanitize(exam.typeName)} &nbsp;|&nbsp; Term: ${examSanitize(exam.termName)}<br>
-    Period: ${examFormatDate(exam.startDate)} – ${examFormatDate(exam.endDate)}<br>
-    ${deadlineLabel}`;
-
-  // [Result Visibility Deadline] Sync the deadline controls to this exam's
-  // stored value every time the selected examination changes. Missing/null
-  // means "No expiry" — checkbox checked, date input cleared and disabled.
-  const dlInput = document.getElementById('rpDeadline');
-  const noExpiryChk = document.getElementById('rpNoExpiry');
-  const dlMsg = document.getElementById('rpDeadlineMsg');
-  if (dlInput && noExpiryChk) {
-    if (exam.resultVisibleUntil) {
-      dlInput.value = exam.resultVisibleUntil;
-      noExpiryChk.checked = false;
-      dlInput.disabled = false;
-    } else {
-      dlInput.value = '';
-      noExpiryChk.checked = true;
-      dlInput.disabled = true;
-    }
-  }
-  if (dlMsg) dlMsg.textContent = '';
+    Period: ${examFormatDate(exam.startDate)} – ${examFormatDate(exam.endDate)}`;
 }
 
 // Recomputes Pass/Fail/Grade/Rank for ONE exam+class from whatever marks
@@ -22354,80 +22273,6 @@ function examUnlockResults() {
   if (typeof addAuditEntry === 'function' && idx > -1) {
     addAuditEntry('EXAM_RESULTS_UNLOCK', `Unlocked/unpublished results for "${exams[idx].name}"`, 'locked', 'draft');
   }
-}
-
-// [Result Visibility Deadline] Sets/changes/clears exam.resultVisibleUntil,
-// the ONLY field this feature adds. This is a visibility-only setting —
-// it never touches isPublished, publishedAt, isLocked, or status, and
-// never recomputes or deletes any result data. Same authorization,
-// storage, and audit pattern as examLockResults/examPublishResults/
-// examUnlockResults above; no new storage mechanism, no new permission
-// engine, no new audit store.
-function examSetResultDeadline(examId, dateStrOrNull) {
-  if (examIsTeacherRestricted()) { examShowToast('Only the Principal can change result visibility', 'danger'); return; }
-  if (!examId) { examShowToast('Select examination', 'warning'); return; }
-
-  const exams = examRetrieve('examinations', []);
-  const idx = exams.findIndex(e => e.id === examId);
-  if (idx === -1) { examShowToast('Examination not found', 'danger'); return; }
-
-  const newVal = (dateStrOrNull && String(dateStrOrNull).trim()) ? String(dateStrOrNull).trim() : null;
-  const oldVal = exams[idx].resultVisibleUntil || null;
-  if (newVal === oldVal) return; // no-op, nothing to save/audit
-
-  exams[idx].resultVisibleUntil = newVal;
-  examStore('examinations', exams);
-
-  const examName = exams[idx].name;
-  let actionType, actionDetail, logMsg;
-  if (!oldVal && newVal) {
-    actionType = 'EXAM_RESULT_DEADLINE_SET';
-    logMsg = 'Result visibility deadline set to ' + newVal;
-    actionDetail = `Set result visibility deadline for "${examName}" to ${newVal}`;
-  } else if (oldVal && !newVal) {
-    actionType = 'EXAM_RESULT_DEADLINE_CLEARED';
-    logMsg = 'Result visibility deadline cleared (No expiry)';
-    actionDetail = `Cleared result visibility deadline for "${examName}" (was ${oldVal})`;
-  } else {
-    actionType = 'EXAM_RESULT_DEADLINE_CHANGED';
-    logMsg = 'Result visibility deadline changed to ' + newVal;
-    actionDetail = `Changed result visibility deadline for "${examName}" from ${oldVal} to ${newVal}`;
-  }
-
-  examLog(logMsg, 'info');
-  examRPLoadStatus();
-  examShowToast(newVal ? ('Result visibility set until ' + examFormatDate(newVal)) : 'Result visibility set to No expiry', 'success');
-
-  // ERP INTEGRATION: forward to main Audit Log if available
-  if (typeof addAuditEntry === 'function') {
-    addAuditEntry(actionType, actionDetail, oldVal || '', newVal || '');
-  }
-}
-
-// [Result Visibility Deadline] DOM wiring only — enables/disables the date
-// input to match the "No expiry" checkbox. Does not save; Save button below
-// still calls examSetResultDeadline() explicitly, same as every other
-// Result Processing action in this card.
-function examToggleNoExpiry() {
-  const dlInput = document.getElementById('rpDeadline');
-  const noExpiryChk = document.getElementById('rpNoExpiry');
-  if (!dlInput || !noExpiryChk) return;
-  dlInput.disabled = noExpiryChk.checked;
-  if (noExpiryChk.checked) dlInput.value = '';
-}
-
-// [Result Visibility Deadline] DOM wiring for the Save button — reads the
-// currently selected examination and the two new controls, then delegates
-// to examSetResultDeadline() for the actual authorization/storage/audit.
-function examSaveResultDeadline() {
-  const examId = document.getElementById('rpExam')?.value;
-  const noExpiryChk = document.getElementById('rpNoExpiry');
-  const dlInput = document.getElementById('rpDeadline');
-  const dlMsg = document.getElementById('rpDeadlineMsg');
-  if (!examId) { examShowToast('Select examination', 'warning'); return; }
-  const dateStrOrNull = (noExpiryChk && noExpiryChk.checked) ? null : (dlInput ? dlInput.value : null);
-  examSetResultDeadline(examId, dateStrOrNull);
-  if (dlMsg) dlMsg.textContent = 'Saved';
 }
 
 /* ═══════════════════════════════════════════════
@@ -33913,565 +33758,6 @@ function addFeeSlabRow() {
 // ═══════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════
-//  HOMEWORK H3 — TEACHER HOMEWORK AUTHORING (page-homework)
-// ------------------------------------------------------------
-//  Additive only. Writes to the existing Dnyanankur.Repository.homework
-//  (Homework H1) using its existing save()/update()/remove() API — no
-//  new storage mechanism. Read side (getHomework()/getHomeworkSummary()/
-//  getHomeworkHistory() in PortalDataService, Homework H2) is completely
-//  unchanged; records created here become visible there automatically
-//  because both sides agree on the same record shape and repository.
-//
-//  Authorization reuses the existing AttEngine.canAccessClass(cls, div) /
-//  AttEngine.teacherAllowedClasses() (Sprint 6.5A) — the same engine
-//  Attendance already uses to scope teachers to currentUser.classAssignments.
-//  No new permission engine, no change to AttEngine itself.
-//
-//  Record shape (matches Homework H1's conceptual model exactly, and
-//  every field pcvRenderHomework() already reads):
-//    { id ('HW'+Date.now()), cls, div, subject, academicYear,
-//      teacherId (currentUser.username), teacher (display name),
-//      homework, dueDate ('YYYY-MM-DD'), attachment (null — H5, out of
-//      scope), status ('Pending' — no completion workflow yet, H7 out
-//      of scope), createdAt (ISO string) }
-//
-//  Division is always a concrete division (no "All" option) — H2's
-//  exact-match cls/div/academicYear filter is unmodified, so an "All"
-//  record would be invisible to every student; out of scope per H3 approval.
-// ═══════════════════════════════════════════════════════════
-(function () {
-  "use strict";
-
-  var DIV_LIST = ['A', 'B', 'C', 'D'];
-
-  function ready() {
-    return !!(window.Dnyanankur && Dnyanankur.Repository && Dnyanankur.Repository.homework);
-  }
-
-  function hwToast(msg, type) {
-    if (typeof showToast === 'function') showToast(msg, type); else alert(msg);
-  }
-
-  function hwEsc(s) {
-    return (typeof esc === 'function') ? esc(s) : String(s == null ? '' : s);
-  }
-
-  /** True if the acting user may author/edit homework for this class/division.
-   *  Delegates entirely to the existing AttEngine.canAccessClass() — same
-   *  engine, same currentUser.classAssignments source, same fail-closed
-   *  default Attendance already relies on. Principal: unrestricted. */
-  function hwCanAccessClass(cls, div) {
-    if (typeof currentUser === 'undefined' || !currentUser) return false;
-    if (currentUser.role === 'principal') return true;
-    if (currentUser.role !== 'teacher') return false;
-    if (!window.AttEngine || typeof AttEngine.canAccessClass !== 'function') return false;
-    return AttEngine.canAccessClass(cls, div);
-  }
-
-  /** Class options available to the acting user. Principal: every class
-   *  with a subject list (getSubjects() keys). Teacher: intersected with
-   *  AttEngine.teacherAllowedClasses() (null = unrestricted, e.g. viewAll). */
-  function hwAllowedClasses() {
-    var allClasses = (typeof getSubjects === 'function') ? Object.keys(getSubjects()) : [];
-    if (!currentUser || currentUser.role === 'principal') return allClasses;
-    if (currentUser.role !== 'teacher') return [];
-    var allowed = window.AttEngine ? AttEngine.teacherAllowedClasses() : [];
-    if (allowed === null) return allClasses; // unrestricted (viewAll)
-    return allClasses.filter(function (c) { return allowed.indexOf(c) !== -1; });
-  }
-
-  function hwActiveYearLabel() {
-    var y = (typeof getActiveYear === 'function') ? getActiveYear() : null;
-    return (y && y.label) ? y.label : ((typeof getSettings === 'function' && getSettings().acyr) || '');
-  }
-
-  /* ── Homework H5: Attachments (additive) ───────────────────────────
-     Attachment bytes are NOT embedded in the homework record. Each
-     upload is stored under its own Dnyanankur.Storage key
-     ('homework_attachment_<attachmentId>'), the same direct-Storage-key
-     pattern already used elsewhere in this app (e.g. 'school_settings').
-     The homework record itself only carries reference metadata
-     (attachmentId/attachmentName/attachmentType/attachmentSize) — H1's
-     repository/array shape and H2's read-side filtering are unchanged.
-     Approved: 2MB per file, allow-listed types, 3MB total budget. */
-  var HW_ATTACHMENT_MAX_BYTES = 2 * 1024 * 1024;
-  var HW_ATTACHMENT_BUDGET_BYTES = 3 * 1024 * 1024;
-  var HW_ATTACHMENT_ALLOWED_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt'];
-  // Strict MIME cross-check only for types the browser reports reliably;
-  // office formats' reported MIME varies too much across browsers/OSes to
-  // check strictly, so those rely on the extension allow-list alone.
-  var HW_ATTACHMENT_STRICT_MIME = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', txt: 'text/plain' };
-
-  /** Validates a File before it is ever read or stored. Checked on both
-   *  the extension and (where reliable) the reported MIME type — never
-   *  trusts the <input accept> attribute alone, since that's client-side
-   *  UX only and can be bypassed. */
-  function hwValidateAttachmentFile(file) {
-    if (!file) return { ok: false, reason: 'No file selected.' };
-    if (file.size > HW_ATTACHMENT_MAX_BYTES) {
-      return { ok: false, reason: 'Attachment is larger than 2MB. Please choose a smaller file.' };
-    }
-    var name = file.name || '';
-    var ext = (name.indexOf('.') !== -1) ? name.split('.').pop().toLowerCase() : '';
-    if (HW_ATTACHMENT_ALLOWED_EXT.indexOf(ext) === -1) {
-      return { ok: false, reason: 'File type not allowed. Allowed: PDF, JPG, PNG, WEBP, DOC(X), PPT(X), XLS(X), TXT.' };
-    }
-    var strictMime = HW_ATTACHMENT_STRICT_MIME[ext];
-    if (strictMime && file.type && file.type !== strictMime) {
-      return { ok: false, reason: 'File content does not match its extension.' };
-    }
-    return { ok: true };
-  }
-
-  /** Sums the size (approx bytes) of every 'homework_attachment_*' key
-   *  already in localStorage, so a new upload can be checked against the
-   *  approved 3MB total Homework-attachment budget (a bounded slice of
-   *  the LocalStorageDriver's declared 5MB app-wide capacity — see H5
-   *  audit). Never assumes an unbounded quota. */
-  function hwAttachmentTotalBytes() {
-    var total = 0;
-    try {
-      for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i);
-        if (k && k.indexOf('homework_attachment_') === 0) {
-          var v = localStorage.getItem(k);
-          if (v) total += v.length;
-        }
-      }
-    } catch (e) { /* ignore — treated as 0, save-time check below still applies per-file cap */ }
-    return total;
-  }
-
-  /** Reads a File as a data URL (same FileReader.readAsDataURL pattern
-   *  already used throughout this app, e.g. school logo/signature
-   *  uploads) and hands the result to cb(err, dataUrl). */
-  function hwReadFileAsAttachment(file, cb) {
-    var reader = new FileReader();
-    reader.onload = function (e) { cb(null, e.target.result); };
-    reader.onerror = function () { cb(new Error('Could not read the attachment file.')); };
-    reader.readAsDataURL(file);
-  }
-
-  /** Shows/hides the "current attachment" row in the authoring form and
-   *  always clears the file input + any pending remove-request, so
-   *  switching between edit targets never leaks state between them. */
-  function hwAuthorShowCurrentAttachment(name) {
-    var attEl = document.getElementById('hw-attachment');
-    if (attEl) { attEl.value = ''; attEl.removeAttribute('data-remove-requested'); }
-    var wrap = document.getElementById('hw-current-attachment');
-    var nameEl = document.getElementById('hw-current-attachment-name');
-    if (!wrap || !nameEl) return;
-    if (name) { nameEl.textContent = name; wrap.style.display = ''; }
-    else { wrap.style.display = 'none'; }
-  }
-
-  /** Marks the currently-loaded attachment for removal on next Save
-   *  (actual deletion happens in hwAuthorSave, after re-validating
-   *  edit authorization — this only sets UI intent). */
-  window.hwAuthorRemoveAttachment = function () {
-    var attEl = document.getElementById('hw-attachment');
-    if (attEl) attEl.setAttribute('data-remove-requested', '1');
-    var wrap = document.getElementById('hw-current-attachment');
-    if (wrap) wrap.style.display = 'none';
-  };
-
-  /** Finishes a save once any attachment fields are resolved (either
-   *  synchronously, when no file was uploaded, or from hwReadFileAsAttachment's
-   *  callback). Kept as its own step because reading a File is async and
-   *  hwAuthorSave() needs a single completion point either way. */
-  function hwAuthorFinishSave(editId, cls, div, subject, dueDate, text, attachmentFields) {
-    if (editId) {
-      Dnyanankur.Repository.homework.update(editId, Object.assign({
-        cls: cls, div: div, subject: subject, dueDate: dueDate, homework: text
-      }, attachmentFields));
-      hwToast('Homework updated.');
-    } else {
-      var record = Object.assign({
-        id: 'HW' + Date.now(),
-        cls: cls,
-        div: div,
-        subject: subject,
-        academicYear: hwActiveYearLabel(),
-        teacherId: (currentUser && currentUser.username) || '',
-        teacher: (currentUser && currentUser.name) || '',
-        homework: text,
-        dueDate: dueDate,
-        attachment: null,
-        status: 'Pending',
-        createdAt: new Date().toISOString()
-      }, attachmentFields);
-      Dnyanankur.Repository.homework.save(record);
-      hwToast('Homework assigned.');
-    }
-    window.hwAuthorResetForm();
-    window.hwAuthorRenderList();
-  }
-  /* ── END Homework H5 helpers ──────────────────────────────────────── */
-
-  window.hwAuthorInit = function () {
-    if (!ready()) { setTimeout(window.hwAuthorInit, 50); return; }
-    hwAuthorResetForm();
-    hwAuthorPopulateClassOptions();
-    hwAuthorRenderList();
-  };
-
-  window.hwAuthorPopulateClassOptions = function () {
-    var clsEl = document.getElementById('hw-class');
-    if (!clsEl) return;
-    var classes = hwAllowedClasses();
-    clsEl.innerHTML = '<option value="">— Select Class —</option>' +
-      classes.map(function (c) { return '<option value="' + hwEsc(c) + '">' + hwEsc(c) + '</option>'; }).join('');
-    window.hwAuthorOnClassChange();
-  };
-
-  window.hwAuthorOnClassChange = function () {
-    var clsEl = document.getElementById('hw-class');
-    var divEl = document.getElementById('hw-div');
-    var subEl = document.getElementById('hw-subject');
-    if (!clsEl || !divEl || !subEl) return;
-    var cls = clsEl.value;
-
-    var allowedDivs = DIV_LIST;
-    if (currentUser && currentUser.role === 'teacher' && cls) {
-      var assignments = currentUser.classAssignments || [];
-      if (assignments.length > 0) {
-        allowedDivs = DIV_LIST.filter(function (d) { return assignments.indexOf(cls + '-' + d) !== -1; });
-      }
-    }
-    divEl.innerHTML = cls
-      ? allowedDivs.map(function (d) { return '<option value="' + hwEsc(d) + '">' + hwEsc(d) + '</option>'; }).join('')
-      : '';
-
-    var subjects = (cls && typeof getSubjects === 'function') ? (getSubjects()[cls] || []) : [];
-    subEl.innerHTML = subjects.map(function (s) { return '<option value="' + hwEsc(s) + '">' + hwEsc(s) + '</option>'; }).join('');
-  };
-
-  window.hwAuthorResetForm = function () {
-    var idEl = document.getElementById('hw-edit-id');
-    var textEl = document.getElementById('hw-text');
-    var dueEl = document.getElementById('hw-duedate');
-    var cancelBtn = document.getElementById('hw-cancel-edit-btn');
-    if (idEl) idEl.value = '';
-    if (textEl) textEl.value = '';
-    if (dueEl) dueEl.value = '';
-    if (cancelBtn) cancelBtn.style.display = 'none';
-    hwAuthorShowCurrentAttachment(null);
-    window.hwAuthorPopulateClassOptions();
-  };
-
-  window.hwAuthorSave = function () {
-    var idEl = document.getElementById('hw-edit-id');
-    var clsEl = document.getElementById('hw-class');
-    var divEl = document.getElementById('hw-div');
-    var subEl = document.getElementById('hw-subject');
-    var dueEl = document.getElementById('hw-duedate');
-    var textEl = document.getElementById('hw-text');
-    var attEl = document.getElementById('hw-attachment');
-    if (!clsEl || !divEl || !subEl || !dueEl || !textEl) return;
-
-    var editId = idEl ? idEl.value : '';
-    var cls = clsEl.value, div = divEl.value, subject = subEl.value;
-    var dueDate = dueEl.value, text = (textEl.value || '').trim();
-
-    if (!cls || !div || !subject || !dueDate || !text) {
-      hwToast('Please fill in Class, Division, Subject, Due Date, and Homework.', 'error');
-      return;
-    }
-
-    // Re-check authorization at the save boundary, not just via the
-    // dropdown options shown — the dropdown only hides options, it does
-    // not itself enforce anything.
-    if (!hwCanAccessClass(cls, div)) {
-      hwToast('You do not have access to assign homework for this class/division.', 'error');
-      return;
-    }
-
-    var existing = null;
-    if (editId) {
-      existing = Dnyanankur.Repository.homework.get(editId);
-      if (!existing) { hwToast('Homework record not found.', 'error'); return; }
-      var isOwner = currentUser && existing.teacherId === currentUser.username;
-      var canEdit = (currentUser && currentUser.role === 'principal') ||
-        (isOwner && hwCanAccessClass(existing.cls, existing.div));
-      if (!canEdit) {
-        hwToast('You can only edit your own homework, and only for a class/division you still have access to.', 'error');
-        return;
-      }
-    }
-
-    // ── H5: Attachment (optional) ──────────────────────────────────
-    var file = (attEl && attEl.files && attEl.files[0]) ? attEl.files[0] : null;
-    var removeRequested = !!(attEl && attEl.getAttribute('data-remove-requested') === '1');
-
-    if (file) {
-      var check = hwValidateAttachmentFile(file);
-      if (!check.ok) { hwToast(check.reason, 'error'); return; }
-      if (hwAttachmentTotalBytes() + file.size > HW_ATTACHMENT_BUDGET_BYTES) {
-        hwToast('Homework attachment storage limit reached. Please remove an older attachment before adding a new one.', 'error');
-        return;
-      }
-      hwReadFileAsAttachment(file, function (err, dataUrl) {
-        if (err) { hwToast('Could not read the attachment file.', 'error'); return; }
-        var newAttachmentId = 'HWA' + Date.now();
-        var stored = Dnyanankur.Storage.set('homework_attachment_' + newAttachmentId, {
-          data: dataUrl, name: file.name, type: file.type || '', size: file.size
-        });
-        if (!stored) { hwToast('Could not save the attachment (storage may be full).', 'error'); return; }
-        var oldAttachmentId = existing ? existing.attachmentId : null;
-        if (oldAttachmentId) Dnyanankur.Storage.remove('homework_attachment_' + oldAttachmentId);
-        hwAuthorFinishSave(editId, cls, div, subject, dueDate, text, {
-          attachmentId: newAttachmentId, attachmentName: file.name,
-          attachmentType: file.type || '', attachmentSize: file.size
-        });
-      });
-      return; // async: hwAuthorFinishSave completes the save once the file is read
-    }
-
-    var attachmentFields;
-    if (removeRequested) {
-      if (existing && existing.attachmentId) Dnyanankur.Storage.remove('homework_attachment_' + existing.attachmentId);
-      attachmentFields = { attachmentId: null, attachmentName: null, attachmentType: null, attachmentSize: null };
-    } else if (existing) {
-      // No new file, no removal requested — preserve whatever attachment
-      // (if any) the record already had, untouched.
-      attachmentFields = {
-        attachmentId: existing.attachmentId || null,
-        attachmentName: existing.attachmentName || null,
-        attachmentType: existing.attachmentType || null,
-        attachmentSize: existing.attachmentSize || null
-      };
-    } else {
-      attachmentFields = { attachmentId: null, attachmentName: null, attachmentType: null, attachmentSize: null };
-    }
-    hwAuthorFinishSave(editId, cls, div, subject, dueDate, text, attachmentFields);
-  };
-
-  window.hwAuthorEdit = function (id) {
-    var rec = Dnyanankur.Repository.homework.get(id);
-    if (!rec) return;
-    var isOwner = currentUser && rec.teacherId === currentUser.username;
-    var canEdit = (currentUser && currentUser.role === 'principal') ||
-      (isOwner && hwCanAccessClass(rec.cls, rec.div));
-    if (!canEdit) {
-      hwToast('You can only edit your own homework, and only for a class/division you still have access to.', 'error');
-      return;
-    }
-
-    document.getElementById('hw-edit-id').value = rec.id;
-    window.hwAuthorPopulateClassOptions();
-    document.getElementById('hw-class').value = rec.cls;
-    window.hwAuthorOnClassChange();
-    document.getElementById('hw-div').value = rec.div;
-    document.getElementById('hw-subject').value = rec.subject;
-    document.getElementById('hw-duedate').value = rec.dueDate;
-    document.getElementById('hw-text').value = rec.homework;
-    hwAuthorShowCurrentAttachment(rec.attachmentName || null);
-    var cancelBtn = document.getElementById('hw-cancel-edit-btn');
-    if (cancelBtn) cancelBtn.style.display = '';
-  };
-
-  window.hwAuthorDelete = function (id) {
-    var rec = Dnyanankur.Repository.homework.get(id);
-    if (!rec) return;
-    var isOwner = currentUser && rec.teacherId === currentUser.username;
-    var canDelete = (currentUser && currentUser.role === 'principal') ||
-      (isOwner && hwCanAccessClass(rec.cls, rec.div));
-    if (!canDelete) {
-      hwToast('You can only delete your own homework, and only for a class/division you still have access to.', 'error');
-      return;
-    }
-    if (!confirm('Delete this homework assignment?')) return;
-    if (rec.attachmentId) Dnyanankur.Storage.remove('homework_attachment_' + rec.attachmentId);
-    Dnyanankur.Repository.homework.remove(id);
-    hwToast('Homework deleted.');
-    window.hwAuthorRenderList();
-  };
-
-  /** Records visible in the list: Principal sees every record; Teacher
-   *  sees only records within their currently allowed classes/divisions
-   *  (not just their own — so a teacher can see what colleagues assigned
-   *  to a class they share), matching the same scope used for authoring. */
-  window.hwAuthorRenderList = function () {
-    var body = document.getElementById('hw-author-table-body');
-    if (!body || !ready()) return;
-    var all = Dnyanankur.Repository.homework.getAll();
-    var visible = all.filter(function (r) { return hwCanAccessClass(r.cls, r.div); });
-    visible.sort(function (a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
-
-    if (!visible.length) {
-      body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#999;">No homework assigned yet.</td></tr>';
-      return;
-    }
-
-    body.innerHTML = visible.map(function (r) {
-      var isOwner = currentUser && r.teacherId === currentUser.username;
-      var canModify = (currentUser && currentUser.role === 'principal') || isOwner;
-      var editDelete = canModify
-        ? '<button class="btn btn-outline btn-sm" onclick="hwAuthorEdit(\'' + r.id + '\')">Edit</button> ' +
-          '<button class="btn btn-red btn-sm" onclick="hwAuthorDelete(\'' + r.id + '\')">Delete</button> '
-        : '';
-      // H7 — Submissions button. `visible` above is already filtered to
-      // hwCanAccessClass(r.cls, r.div), so every row reaching this map()
-      // is already an authorized class/division for the acting
-      // teacher/principal — no separate check needed to show the button,
-      // only to act on it (see hwAuthorViewSubmissions()).
-      var actions = editDelete +
-        '<button class="btn btn-outline btn-sm" onclick="hwAuthorViewSubmissions(\'' + r.id + '\')">Submissions</button>';
-      return '<tr>' +
-        '<td>' + hwEsc(r.cls) + '</td>' +
-        '<td>' + hwEsc(r.div) + '</td>' +
-        '<td>' + hwEsc(r.subject) + '</td>' +
-        '<td>' + hwEsc(r.homework) + '</td>' +
-        '<td>' + hwEsc(r.dueDate) + '</td>' +
-        '<td>' + hwEsc(r.status) + '</td>' +
-        '<td>' + hwEsc(r.teacher || r.teacherId) + '</td>' +
-        '<td>' + actions + '</td>' +
-        '</tr>';
-    }).join('');
-  };
-
-  /* ── Homework H7: Teacher Review of Submissions (additive) ─────────
-     Reuses the SAME hwCanAccessClass() gate as every edit/delete
-     action in this module, and the SAME Dnyanankur.Repository /
-     BaseRepository pattern as H1 — reads/writes
-     Dnyanankur.Repository.homeworkSubmissions (H7's own repository)
-     directly. Deliberately does NOT go through PortalDataService:
-     that layer's gateStudent() gates parent/student portal sessions,
-     a completely different, unrelated auth domain from the teacher/
-     principal `currentUser` session this module already runs under
-     (see H3's own hwCanAccessClass() above). No new authorization
-     engine, no new storage engine, no duplicate of either. */
-
-  function hwSubRepo() {
-    return (window.Dnyanankur && Dnyanankur.Repository && Dnyanankur.Repository.homeworkSubmissions)
-      ? Dnyanankur.Repository.homeworkSubmissions : null;
-  }
-
-  function hwSubStatusBadge(status) {
-    var map = {
-      Submitted: 'background:#e8f5ec;color:#1a6b3c;',
-      Late: 'background:#fbe9e7;color:#c0392b;',
-      Reviewed: 'background:#eef2f7;color:#1a3a6b;'
-    };
-    return '<span class="badge" style="' + (map[status] || 'background:#eee;color:#555;') + '">' + hwEsc(status || '—') + '</span>';
-  }
-
-  /** Retrieves and downloads a Homework SUBMISSION attachment. Namespace
-   *  ('homework_submission_attachment_') is completely separate from
-   *  this module's own teacher 'homework_attachment_' namespace above
-   *  — never reads/writes/counts against that prefix. Missing/corrupt
-   *  storage is handled gracefully (toast, no throw), matching
-   *  pcvDownloadHomeworkAttachment()'s own pattern for the H5 case. */
-  window.hwAuthorDownloadSubmissionAttachment = function (attachmentId, displayName) {
-    if (!attachmentId) return;
-    var stored = null;
-    try { stored = Dnyanankur.Storage.get('homework_submission_attachment_' + attachmentId); } catch (e) { stored = null; }
-    if (!stored || !stored.data) { hwToast('Attachment unavailable.', 'error'); return; }
-    var a = document.createElement('a');
-    a.href = stored.data;
-    a.download = stored.name || displayName || 'attachment';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  };
-
-  /** Opens the Submissions modal for one Homework record. Gated by the
-   *  SAME hwCanAccessClass() check every edit/delete action already
-   *  uses — an authorized teacher/principal for this class/division,
-   *  nothing more permissive. */
-  window.hwAuthorViewSubmissions = function (homeworkId) {
-    var rec = Dnyanankur.Repository.homework.get(homeworkId);
-    if (!rec) { hwToast('Homework record not found.', 'error'); return; }
-    if (!hwCanAccessClass(rec.cls, rec.div)) {
-      hwToast('You do not have access to view submissions for this class/division.', 'error');
-      return;
-    }
-    var titleEl = document.getElementById('hw-submissions-modal-title');
-    if (titleEl) titleEl.textContent = 'Submissions — ' + (rec.subject || '') + ' (' + rec.cls + '-' + rec.div + ')';
-    var hidEl = document.getElementById('hw-submissions-modal-homework-id');
-    if (hidEl) hidEl.value = homeworkId;
-    window.hwAuthorRenderSubmissions(homeworkId);
-    if (typeof openModal === 'function') openModal('modal-hw-submissions');
-  };
-
-  window.hwAuthorCloseSubmissions = function () {
-    if (typeof closeModal === 'function') closeModal('modal-hw-submissions');
-  };
-
-  /** Renders the submissions table inside the modal. Re-checks
-   *  hwCanAccessClass() every time (not just on open) so a stale-open
-   *  modal never shows data for a class/division access was revoked
-   *  from mid-session. */
-  window.hwAuthorRenderSubmissions = function (homeworkId) {
-    var body = document.getElementById('hw-submissions-table-body');
-    if (!body) return;
-    var rec = Dnyanankur.Repository.homework.get(homeworkId);
-    var repo = hwSubRepo();
-    if (!rec || !repo || !hwCanAccessClass(rec.cls, rec.div)) {
-      body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;">Unable to load submissions.</td></tr>';
-      return;
-    }
-
-    var all = repo.search({ homeworkId: homeworkId });
-    if (!all.length) {
-      body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;">No submissions yet.</td></tr>';
-      return;
-    }
-
-    function studentName(sid) {
-      if (typeof getStudents !== 'function') return sid;
-      var s = getStudents().filter(function (x) { return String(x.id) === String(sid); })[0];
-      return s ? (s.name || sid) : sid;
-    }
-
-    all.sort(function (a, b) { return (b.updatedAt || b.submittedAt || '').localeCompare(a.updatedAt || a.submittedAt || ''); });
-
-    body.innerHTML = all.map(function (s) {
-      var attCell = '—';
-      if (s.attachmentId) {
-        var sSafeId = hwEsc(s.attachmentId), sSafeName = hwEsc(s.attachmentName || 'attachment');
-        attCell = '<button class="btn btn-outline btn-sm" onclick="hwAuthorDownloadSubmissionAttachment(\'' + sSafeId + '\',\'' + sSafeName + '\')">⬇ ' + sSafeName + '</button>';
-      }
-      var reviewAction = (s.status === 'Reviewed')
-        ? '—'
-        : '<button class="btn btn-primary btn-sm" onclick="hwAuthorMarkReviewed(\'' + hwEsc(s.id) + '\',\'' + hwEsc(homeworkId) + '\')">Mark Reviewed</button>';
-      return '<tr>' +
-        '<td>' + hwEsc(studentName(s.studentId)) + '</td>' +
-        '<td>' + hwSubStatusBadge(s.status) + '</td>' +
-        '<td>' + hwEsc((s.updatedAt || s.submittedAt || '').replace('T', ' ').slice(0, 16)) + '</td>' +
-        '<td style="max-width:260px;white-space:pre-wrap;">' + hwEsc(s.responseText || '—') + '</td>' +
-        '<td>' + attCell + '</td>' +
-        '<td>' + reviewAction + '</td>' +
-        '</tr>';
-    }).join('');
-  };
-
-  /** Transitions one submission Submitted/Late → Reviewed. Locks it
-   *  against further portal edits — PortalDataService.submitHomework()
-   *  rejects any write once status is Reviewed (see that function's own
-   *  file header). */
-  window.hwAuthorMarkReviewed = function (submissionId, homeworkId) {
-    var rec = Dnyanankur.Repository.homework.get(homeworkId);
-    if (!rec || !hwCanAccessClass(rec.cls, rec.div)) {
-      hwToast('You do not have access to review submissions for this class/division.', 'error');
-      return;
-    }
-    var repo = hwSubRepo();
-    if (!repo) return;
-    var sub = repo.get(submissionId);
-    if (!sub || sub.homeworkId !== homeworkId) { hwToast('Submission not found.', 'error'); return; }
-    if (sub.status === 'Reviewed') return;
-    repo.update(submissionId, { status: 'Reviewed' });
-    hwToast('Submission marked Reviewed.');
-    window.hwAuthorRenderSubmissions(homeworkId);
-  };
-
-})();
-// ═══════════════════════════════════════════════════════════
-// END [Homework H3 — Teacher Homework Authoring]
-// ═══════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════
 //  SPRINT ATT-P2 — ACADEMIC CALENDAR (Administration page)
 //  Additive only. New page (#page-academic-calendar), new repository
 //  ('academic_calendar', via the existing Dnyanankur.Repository.BaseRepository —
@@ -44102,31 +43388,6 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
   var PORTAL_ACCESS_MODULES = ['Attendance','Homework','Circulars','Timetable','Fees','Receipts','Report Cards','Exam Results','Certificates','Downloads','Leave','Communication'];
   var PORTAL_NOTIFICATION_CATEGORIES = ['Attendance','Homework','Fees','Circulars','Report Cards','Exams','Leave','Transport','General Announcements'];
 
-  // ── Module list source — prefers the centralized PortalAccessEngine's
-  //    SUPPORTED_MODULES so the two lists can't drift apart; falls back to
-  //    the existing local PORTAL_ACCESS_MODULES if the engine isn't loaded. ──
-  function portalModuleList() {
-    return (window.PortalAccessEngine && Array.isArray(window.PortalAccessEngine.SUPPORTED_MODULES) && window.PortalAccessEngine.SUPPORTED_MODULES.length)
-      ? window.PortalAccessEngine.SUPPORTED_MODULES
-      : PORTAL_ACCESS_MODULES;
-  }
-
-  // ── Audit (reuses the exact portal_audit shape already written by
-  //    PortalAccessEngine.auditDenied / the Parent Auth engine's auditAuth) ──
-  function portalAuditWrite(action, moduleLabel, status, details) {
-    if (!window.Dnyanankur || !Dnyanankur.Repository || !Dnyanankur.Repository.portalAudit) return;
-    Dnyanankur.Repository.portalAudit.save({
-      id: 'aud_pmgmt_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
-      timestamp: new Date().toLocaleString(),
-      user: (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.username || currentUser.name || 'System') : 'System',
-      role: (typeof currentUser !== 'undefined' && currentUser) ? (currentUser.role || 'system') : 'system',
-      action: action,
-      module: moduleLabel || '',
-      status: status || 'Success',
-      details: details || ''
-    });
-  }
-
   // ── Tab switching (scoped to #portal-tabs, mirrors switchFinanceTab) ──
   window.switchPortalTab = function (tab, el) {
     document.querySelectorAll('.portal-tab').forEach(function (t) { t.style.display = 'none'; });
@@ -44351,7 +43612,7 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
     var existing = repo.getAll();
     var byId = {};
     existing.forEach(function (r) { byId[r.id] = r; });
-    portalModuleList().forEach(function (name) {
+    PORTAL_ACCESS_MODULES.forEach(function (name) {
       var id = portalSlug(name);
       if (!byId[id]) repo.save({ id: id, module: name, rule: 'always' });
     });
@@ -44359,10 +43620,9 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
 
   window.portalRenderAccess = function () {
     portalEnsureAccessRows();
-    var moduleList = portalModuleList();
     var rows = Dnyanankur.Repository.portalAccess.getAll();
     rows.sort(function (a, b) {
-      return moduleList.indexOf(a.module) - moduleList.indexOf(b.module);
+      return PORTAL_ACCESS_MODULES.indexOf(a.module) - PORTAL_ACCESS_MODULES.indexOf(b.module);
     });
     var options = [['always', 'Always Allow'], ['feespending', 'Block if Fees Pending'], ['aftergrace', 'Block after Grace'], ['disabled', 'Disabled']];
     var body = document.getElementById('portal-access-body');
@@ -44379,8 +43639,6 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
 
   window.portalSaveAccessRow = function (id, rule) {
     Dnyanankur.Repository.portalAccess.update(id, { rule: rule });
-    var row = Dnyanankur.Repository.portalAccess.getById(id);
-    portalAuditWrite('Access Rule Changed', (row && row.module) || id, 'Success', 'Rule set to ' + rule);
   };
 
   // ── Fee Policies ──
@@ -44434,15 +43692,12 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
     var body = document.getElementById('portal-overrides-body');
     if (!body) return;
     if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#999;">No overrides yet.</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;">No overrides yet.</td></tr>';
       return;
     }
     body.innerHTML = rows.map(function (o) {
       var badgeClass = o.status === 'Active' ? 'badge-green' : (o.status === 'Expired' ? 'badge-yellow' : 'badge-red');
-      var moduleLabel = o.module ? o.module : 'Whole Portal';
-      var action = o.action || 'ALLOW'; // missing action = ALLOW (backward compat)
-      var actionBadge = action === 'DENY' ? 'badge-red' : 'badge-green';
-      return '<tr><td>' + (o.student || '') + '</td><td>' + moduleLabel + '</td><td><span class="badge ' + actionBadge + '">' + action + '</span></td><td>' + (o.reason || '') + '</td><td>' + (o.startDate || '') +
+      return '<tr><td>' + (o.student || '') + '</td><td>' + (o.reason || '') + '</td><td>' + (o.startDate || '') +
         '</td><td>' + (o.endDate || '') + '</td><td><span class="badge ' + badgeClass + '">' + (o.status || '') + '</span></td>' +
         '<td><button class="btn btn-outline btn-sm" onclick="portalOpenOverrideModal(\'' + o.id + '\')">✏️ Edit</button> ' +
         '<button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red);" onclick="portalDeleteOverride(\'' + o.id + '\')">🗑 Delete</button></td></tr>';
@@ -44458,20 +43713,8 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
     }).join('');
   }
 
-  // Module dropdown for the override modal: "Whole Portal" (value '')
-  // plus every supported module, sourced via portalModuleList().
-  function portalPopulateModuleDropdown() {
-    var sel = document.getElementById('po-module');
-    if (!sel) return;
-    var modules = portalModuleList();
-    sel.innerHTML = '<option value="">Whole Portal</option>' + modules.map(function (m) {
-      return '<option value="' + m + '">' + m + '</option>';
-    }).join('');
-  }
-
   window.portalOpenOverrideModal = function (id) {
     portalPopulateStudentDropdown();
-    portalPopulateModuleDropdown();
     var msg = document.getElementById('portal-override-modal-msg');
     if (msg) msg.innerHTML = '';
     if (id) {
@@ -44479,15 +43722,13 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
       document.getElementById('portal-override-modal-title').textContent = 'Edit Override';
       setv('po-id', id);
       setv('po-student', rec ? rec.studentId : '');
-      setv('po-module', rec ? (rec.module || '') : '');
-      setv('po-action', rec ? (rec.action || 'ALLOW') : 'ALLOW');
       setv('po-reason', rec ? rec.reason : '');
       setv('po-start', rec ? rec.startDate : '');
       setv('po-end', rec ? rec.endDate : '');
       setv('po-status', rec ? rec.status : 'Active');
     } else {
       document.getElementById('portal-override-modal-title').textContent = 'Add Override';
-      setv('po-id', ''); setv('po-student', ''); setv('po-module', ''); setv('po-action', 'ALLOW'); setv('po-reason', '');
+      setv('po-id', ''); setv('po-student', ''); setv('po-reason', '');
       setv('po-start', ''); setv('po-end', ''); setv('po-status', 'Active');
     }
     openModal('modal-portal-override');
@@ -44498,35 +43739,27 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
     var studentId = pv('po-student');
     var studentSel = document.getElementById('po-student');
     var studentName = (studentSel && studentSel.selectedIndex >= 0) ? studentSel.options[studentSel.selectedIndex].text : '';
-    var moduleName = pv('po-module'); // '' = Whole Portal
-    var action = pv('po-action') || 'ALLOW'; // default ALLOW for backward compatibility
     var reason = pv('po-reason');
     var msg = document.getElementById('portal-override-modal-msg');
     if (!studentId || !reason) {
       if (msg) msg.innerHTML = '<div class="alert alert-error">Student and Reason are required.</div>';
       return;
     }
-    var record = { studentId: studentId, student: studentName, module: moduleName, action: action, reason: reason, startDate: pv('po-start'), endDate: pv('po-end'), status: pv('po-status') };
+    var record = { studentId: studentId, student: studentName, reason: reason, startDate: pv('po-start'), endDate: pv('po-end'), status: pv('po-status') };
     var repo = Dnyanankur.Repository.portalOverrides;
-    var isNew = !id;
     if (id) {
       repo.update(id, record);
     } else {
       record.id = 'ov_' + Date.now();
       repo.save(record);
     }
-    portalAuditWrite(isNew ? 'Override Created' : 'Override Updated', moduleName || 'Whole Portal',
-      'Success', studentName + ' — ' + action + ' (' + reason + ')');
     closeModal('modal-portal-override');
     portalRenderOverrides();
   };
 
   window.portalDeleteOverride = function (id) {
     if (!confirm('Delete this override?')) return;
-    var rec = Dnyanankur.Repository.portalOverrides.getById(id);
     Dnyanankur.Repository.portalOverrides.remove(id);
-    portalAuditWrite('Override Deleted', (rec && (rec.module || 'Whole Portal')) || 'Whole Portal',
-      'Success', (rec && rec.student) || id);
     portalRenderOverrides();
   };
 
@@ -44607,7 +43840,6 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
   // dropdown. No fee/access/override logic is duplicated here.
   window.portalRenderPermissionsTab = function () {
     portalPermissionsPopulateParents();
-    portalPermissionsPopulateStudents();
     portalPermissionsRender();
   };
 
@@ -44625,32 +43857,11 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
     if (current) sel.value = current;
   };
 
-  // Student selector for the chosen parent, so a single-child preview can
-  // use getPermissionSummary(parentId, studentId) instead of the default
-  // worst-case-across-all-children behavior. Optional — "All Linked
-  // Children" (value '') keeps the existing 1-argument behavior.
-  window.portalPermissionsPopulateStudents = function () {
-    var parentSel = document.getElementById('pe-parent-select');
-    var studentSel = document.getElementById('pe-student-select');
-    if (!studentSel) return;
-    var parentId = parentSel ? parentSel.value : '';
-    var account = (parentId && Dnyanankur.Repository.portalParentAccounts) ? Dnyanankur.Repository.portalParentAccounts.getById(parentId) : null;
-    var childIds = (account && account.children) ? account.children : [];
-    var students = (typeof getStudents === 'function') ? getStudents() : [];
-    var childRecords = students.filter(function (s) { return childIds.indexOf(s.id) !== -1; });
-    studentSel.innerHTML = '<option value="">All Linked Children (worst-case)</option>' + childRecords.map(function (s) {
-      return '<option value="' + s.id + '">' + (s.name || '') + ' (' + (s.admissionNo || s.id) + ')</option>';
-    }).join('');
-    studentSel.disabled = !parentId;
-  };
-
   window.portalPermissionsRender = function () {
     var body = document.getElementById('portal-permissions-body');
     if (!body) return;
     var sel = document.getElementById('pe-parent-select');
     var parentId = sel ? sel.value : '';
-    var studentSel = document.getElementById('pe-student-select');
-    var studentId = studentSel ? studentSel.value : '';
     if (!window.PortalAccessEngine) {
       body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">Portal Access Engine not available.</td></tr>';
       return;
@@ -44659,7 +43870,7 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
       body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">Choose a parent above to preview permissions.</td></tr>';
       return;
     }
-    var rows = PortalAccessEngine.getPermissionSummary(parentId, studentId || null);
+    var rows = PortalAccessEngine.getPermissionSummary(parentId);
     body.innerHTML = rows.map(function (r) {
       var badgeClass = r.allowed ? 'badge-green' : 'badge-red';
       var statusText = r.allowed ? '✅ Allowed' : '⛔ Blocked';
@@ -45116,11 +44327,8 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
     return global.getStudents().filter(function (s) { return s.id === studentId; })[0] || null;
   }
 
-  /** Any ACTIVE override for this student whose date range covers today,
-   *  restricted to WHOLE-PORTAL rows (module blank/absent). Unchanged
-   *  behavior for pre-existing records, which never have a `module` field.
-   *  Used by Maintenance Mode (Step 2, unchanged) and as the Step 5b
-   *  fallback — see DESIGN NOTE 1 above. */
+  /** Any ACTIVE override for this student whose date range covers today.
+   *  See DESIGN NOTE 1 above — treated as a whole-portal Principal Override. */
   function getActiveOverride(studentId) {
     var today = new Date().toISOString().slice(0, 10);
     var rows = Dnyanankur.Repository.portalOverrides.getAll();
@@ -45129,25 +44337,7 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
       if (o.status !== 'Active') return false;
       if (o.startDate && o.startDate > today) return false;
       if (o.endDate && o.endDate < today) return false;
-      if (o.module) return false; // module-specific rows are handled by getActiveModuleOverride
       return true;
-    })[0] || null;
-  }
-
-  /** Any ACTIVE override for this exact student + exact module whose date
-   *  range covers today (Step 5a). Deliberately separate from
-   *  getActiveOverride() above so Maintenance Mode (Step 2) can never see
-   *  a module-specific row — see IMPORTANT PRECEDENCE DETAIL. */
-  function getActiveModuleOverride(studentId, moduleName) {
-    var today = new Date().toISOString().slice(0, 10);
-    var rows = Dnyanankur.Repository.portalOverrides.getAll();
-    return rows.filter(function (o) {
-      if (o.studentId !== studentId) return false;
-      if (o.status !== 'Active') return false;
-      if (o.startDate && o.startDate > today) return false;
-      if (o.endDate && o.endDate < today) return false;
-      if (!o.module) return false; // whole-portal rows are not module-specific
-      return slug(o.module) === slug(moduleName);
     })[0] || null;
   }
 
@@ -45225,29 +44415,11 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
       return decision(false, sReason, false, 'Student Active');
     }
 
-    // 5. Overrides
-    // 5a. Exact student + exact module override — authoritative ALLOW/DENY.
-    //     Missing/absent action on an old-format record can't occur here
-    //     (getActiveModuleOverride only matches rows that have a module),
-    //     but a module override saved without an action still defaults to
-    //     ALLOW for backward compatibility with the general override shape.
-    var moduleOverride = getActiveModuleOverride(studentId, moduleName);
-    if (moduleOverride) {
-      var moAction = moduleOverride.action || 'ALLOW';
-      if (moAction === 'DENY') {
-        return decision(false, 'Module Override (Denied)', true, 'Overrides');
-      }
-      return decision(true, 'Module Override (Allowed)', true, 'Overrides');
-    }
-
-    // 5b. Existing whole-portal override — allow, regardless of fees
-    //     (unchanged from before).
+    // 5. Overrides — Principal Override (allow, regardless of fees)
     var override = getActiveOverride(studentId);
     if (override) {
       return decision(true, 'Principal Override', true, 'Overrides');
     }
-
-    // 5c. Neither — continue to Step 6 exactly as before.
 
     // 6. Module Access Rule
     var rule = getAccessRule(moduleName);
@@ -45320,22 +44492,18 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
     return worst;
   }
 
-  /** PUBLIC API — getPermissionSummary(parentId, studentId?): one row per
-   *  supported module, for the Permission Engine tab's Test Mode / Live
-   *  Preview. studentId is optional and additive — existing one-argument
-   *  callers are unaffected; when omitted, canAccess() keeps evaluating
-   *  every linked child exactly as before (worst-case across children). */
-  function getPermissionSummary(parentId, studentId) {
+  /** PUBLIC API — getPermissionSummary(parentId): one row per supported
+   *  module, for the Permission Engine tab's Test Mode / Live Preview. */
+  function getPermissionSummary(parentId) {
     return SUPPORTED_MODULES.map(function (m) {
-      var r = canAccess(parentId, m, studentId || null, { silent: true });
+      var r = canAccess(parentId, m, null, { silent: true });
       return { module: m, allowed: r.allowed, reason: r.reason, ruleApplied: r.ruleApplied, override: r.override };
     });
   }
 
   global.PortalAccessEngine = {
     canAccess: canAccess,
-    getPermissionSummary: getPermissionSummary,
-    SUPPORTED_MODULES: SUPPORTED_MODULES.slice()
+    getPermissionSummary: getPermissionSummary
   };
 
   if (global.Dnyanankur && Dnyanankur.Logger) {
@@ -46325,294 +45493,7 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
     }
 
     applyViewerChrome();
-    spdRenderDashboard(session);
     show('page-student-home');
-  };
-
-  /////////////////////////////////////////////////////////////
-  // PHASE A — Student Dashboard (Summary Strip + Module Grid)
-  // ------------------------------------------------------------
-  // Purely additive to the Student Portal controller above. Every
-  // value below comes from window.PortalDataService — the SAME
-  // gateStudent() -> PortalAccessEngine.canAccess() permission
-  // check every existing viewer already goes through — nothing
-  // here recalculates attendance/fees/exam data, invents a value,
-  // or bypasses PortalAccessEngine/gateStudent. Working modules
-  // launch the existing shared Parent Portal viewers (Attendance /
-  // Fees / Exams / Communication) via their existing entry points;
-  // Report Cards and Leave deep-link into those same viewers' own
-  // existing tab-switch functions (pxvSwitchTab / pcvSwitchTab —
-  // both already global). No new viewer page, no new engine, no
-  // duplicate Student Portal controller is created here.
-  //
-  // Homework / Circulars / Notifications / Certificates / Downloads
-  // are marked Not Available Yet because PortalDataService's own
-  // methods for them (getHomework/getCirculars/getNotifications/
-  // getCertificates/getDownloads) are permanent stubs in this build
-  // (see their "no content store exists yet" comments above) —
-  // this patch does not change that, only reflects it honestly.
-  // Timetable is Not Available Yet because the only Timetable in
-  // this build is the Exam Timetable, not a weekly class timetable.
-  //
-  // Transport is a special case: PortalDataService.getTransport()
-  // IS real (reads getTransportMaster(), gated normally) but no
-  // Parent/Student Transport viewer page exists anywhere in this
-  // build to "launch". Rather than mislabel it Coming Soon (data
-  // is real) or build a brand-new viewer page (out of scope for
-  // this additive patch), its card shows the same gated data
-  // inline via a small expand toggle — no new page, no new engine.
-  /////////////////////////////////////////////////////////////
-
-  var SPD_MODULES = [
-    { key: 'dashboard',     title: 'Dashboard',     icon: '🏠', kind: 'current' },
-    { key: 'attendance',    title: 'Attendance',    icon: '📅', kind: 'live' },
-    { key: 'homework',      title: 'Homework',      icon: '📝', kind: 'live' },
-    { key: 'circulars',     title: 'Circulars',     icon: '📰', kind: 'soon' },
-    { key: 'notifications', title: 'Notifications', icon: '🔔', kind: 'soon' },
-    { key: 'timetable',     title: 'Timetable',     icon: '🗓️', kind: 'soon' },
-    { key: 'fees',          title: 'Fees',          icon: '💰', kind: 'live' },
-    { key: 'receipts',      title: 'Receipts',      icon: '🧾', kind: 'live' },
-    { key: 'examresults',   title: 'Exam Results',  icon: '🎓', kind: 'live' },
-    { key: 'reportcards',   title: 'Report Cards',  icon: '📊', kind: 'live' },
-    { key: 'certificates',  title: 'Certificates',  icon: '📜', kind: 'soon' },
-    { key: 'downloads',     title: 'Downloads',     icon: '⬇️', kind: 'soon' },
-    { key: 'leave',         title: 'Leave',         icon: '🧳', kind: 'live' },
-    { key: 'communication', title: 'Communication', icon: '💬', kind: 'live' },
-    { key: 'transport',     title: 'Transport',     icon: '🚌', kind: 'transport' }
-  ];
-
-  function spdEsc(s) {
-    return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
-  function spdMoney(n) {
-    if (n === null || n === undefined || n === '' || isNaN(Number(n))) return '—';
-    return '₹' + Number(n).toLocaleString('en-IN');
-  }
-  function spdPct(n) {
-    return (n === null || n === undefined || isNaN(Number(n))) ? '—' : (Math.round(Number(n) * 10) / 10) + '%';
-  }
-
-  /** Uniform read of a PortalDataService result: denied (permission),
-   *  unavailable-but-accessible (nothing to show, viewer explains it),
-   *  or available. Never re-derives the decision itself — only reads
-   *  the flags gateStudent()/PortalAccessEngine already set. */
-  function spdStatus(res) {
-    if (!res) return { state: 'unavailable', reason: 'Portal services unavailable.' };
-    if (res.permissionDenied) return { state: 'denied', reason: res.reason || 'Access Denied' };
-    if (res.success === false) return { state: 'unavailable', reason: res.message || 'Unable to load.' };
-    return { state: 'available', reason: null };
-  }
-
-  function spdSummaryHTML(attRes, feeRes, examHistRes) {
-    var cards = [];
-
-    var attVal = '—', attSub = 'Not available';
-    if (attRes && attRes.permissionDenied) { attSub = 'Access Disabled'; }
-    else if (attRes && attRes.success && attRes.available !== false && attRes.attendance) {
-      attVal = spdPct(attRes.attendance.attendancePercentage);
-      attSub = (attRes.attendance.presentDays != null && attRes.attendance.workingDays != null)
-        ? (attRes.attendance.presentDays + ' / ' + attRes.attendance.workingDays + ' working days')
-        : 'This academic year';
-    } else if (attRes && attRes.success && attRes.available === false) {
-      attSub = attRes.message || 'Not tracked yet';
-    }
-    cards.push({ label: 'Attendance', value: attVal, sub: attSub });
-
-    var feeVal = '—', feeSub = 'Not available';
-    if (feeRes && feeRes.permissionDenied) { feeSub = 'Access Disabled'; }
-    else if (feeRes && feeRes.success && feeRes.available !== false && feeRes.fees) {
-      feeVal = spdMoney(feeRes.fees.balance);
-      feeSub = (Number(feeRes.fees.balance) > 0) ? 'Balance Due' : 'Fully Paid';
-    } else if (feeRes && feeRes.success && feeRes.available === false) {
-      feeSub = feeRes.message || 'Not available yet';
-    }
-    cards.push({ label: 'Fees', value: feeVal, sub: feeSub });
-
-    var resVal = '—', resSub = 'No results published yet';
-    if (examHistRes && examHistRes.permissionDenied) { resSub = 'Access Disabled'; }
-    else if (examHistRes && examHistRes.success && examHistRes.available !== false && examHistRes.history && examHistRes.history.length) {
-      var latest = examHistRes.history[0];
-      resVal = spdPct(latest.percentage);
-      resSub = (latest.examName || 'Latest Exam') + (latest.grade ? (' · Grade ' + latest.grade) : '');
-    } else if (examHistRes && examHistRes.success && examHistRes.available === false) {
-      resSub = examHistRes.message || 'Not published yet';
-    }
-    cards.push({ label: 'Results', value: resVal, sub: resSub });
-
-    return cards.map(function (c) {
-      return '<div class="student-portal-summary-card">' +
-        '<div class="student-portal-summary-label">' + spdEsc(c.label) + '</div>' +
-        '<div class="student-portal-summary-value">' + spdEsc(c.value) + '</div>' +
-        '<div class="student-portal-summary-sub">' + spdEsc(c.sub) + '</div>' +
-        '</div>';
-    }).join('');
-  }
-
-  function spdCardHTML(mod, statusInfo) {
-    if (mod.kind === 'current') {
-      return '<div class="student-portal-card spd-current">' +
-        '<div class="student-portal-card-icon">' + mod.icon + '</div>' +
-        '<div class="student-portal-card-title">' + spdEsc(mod.title) + '</div>' +
-        '<div class="student-portal-card-status spd-status-current">Current</div>' +
-        '<span class="student-portal-card-action spd-current-tag">You\u2019re Here</span>' +
-        '</div>';
-    }
-    if (mod.kind === 'soon') {
-      return '<div class="student-portal-card spd-soon">' +
-        '<div class="student-portal-card-icon">' + mod.icon + '</div>' +
-        '<div class="student-portal-card-title">' + spdEsc(mod.title) + '</div>' +
-        '<div class="student-portal-card-status spd-status-soon">Coming Soon</div>' +
-        '<button class="btn btn-outline btn-sm student-portal-card-action" disabled>Not Available Yet</button>' +
-        '</div>';
-    }
-    var denied = statusInfo && statusInfo.state === 'denied';
-    var action = denied
-      ? '<button class="btn btn-outline btn-sm student-portal-card-action" disabled title="' + spdEsc(statusInfo.reason) + '">Access Disabled</button>'
-      : '<button class="btn btn-primary btn-sm student-portal-card-action" onclick="spdOpenModule(\'' + mod.key + '\')">Open</button>';
-    return '<div class="student-portal-card' + (denied ? ' spd-denied' : '') + '">' +
-      '<div class="student-portal-card-icon">' + mod.icon + '</div>' +
-      '<div class="student-portal-card-title">' + spdEsc(mod.title) + '</div>' +
-      '<div class="student-portal-card-status ' + (denied ? 'spd-status-denied' : 'spd-status-available') + '">' + (denied ? 'Access Disabled' : 'Available') + '</div>' +
-      action +
-      '</div>';
-  }
-
-  /** Transport has real, gated data (PortalDataService.getTransport())
-   *  but no existing viewer page to launch — see file header note
-   *  above. Shows the same data an "Open" viewer would, inline. */
-  function spdTransportCardHTML(res, statusInfo) {
-    var icon = '🚌', title = 'Transport';
-    if (statusInfo.state === 'denied') {
-      return '<div class="student-portal-card spd-denied">' +
-        '<div class="student-portal-card-icon">' + icon + '</div>' +
-        '<div class="student-portal-card-title">' + title + '</div>' +
-        '<div class="student-portal-card-status spd-status-denied">Access Disabled</div>' +
-        '<button class="btn btn-outline btn-sm student-portal-card-action" disabled title="' + spdEsc(statusInfo.reason) + '">Access Disabled</button>' +
-        '</div>';
-    }
-    var t = (res && res.success && res.transport) ? res.transport : null;
-    if (!t || t.required === false) {
-      return '<div class="student-portal-card">' +
-        '<div class="student-portal-card-icon">' + icon + '</div>' +
-        '<div class="student-portal-card-title">' + title + '</div>' +
-        '<div class="student-portal-card-status spd-status-available">Available</div>' +
-        '<div class="student-portal-card-sub">Not enrolled for school transport</div>' +
-        '</div>';
-    }
-    if (res.available === false) {
-      return '<div class="student-portal-card">' +
-        '<div class="student-portal-card-icon">' + icon + '</div>' +
-        '<div class="student-portal-card-title">' + title + '</div>' +
-        '<div class="student-portal-card-status spd-status-available">Available</div>' +
-        '<div class="student-portal-card-sub">' + spdEsc(res.message || 'Route not configured yet.') + '</div>' +
-        '</div>';
-    }
-    var detail = '<div class="student-portal-transport-detail" style="display:none;">' +
-      '<div><strong>Route:</strong> ' + spdEsc(t.route || '—') + '</div>' +
-      '<div><strong>Annual Fee:</strong> ' + spdMoney(t.annualFee) + '</div>' +
-      (t.note ? '<div class="student-portal-transport-note">' + spdEsc(t.note) + '</div>' : '') +
-      '</div>';
-    return '<div class="student-portal-card">' +
-      '<div class="student-portal-card-icon">' + icon + '</div>' +
-      '<div class="student-portal-card-title">' + title + '</div>' +
-      '<div class="student-portal-card-status spd-status-available">Available</div>' +
-      detail +
-      '<button class="btn btn-outline btn-sm student-portal-card-action" onclick="spdToggleTransport(this)">View Details</button>' +
-      '</div>';
-  }
-
-  function spdRenderDashboard(session) {
-    var studentId = session && session.scopedStudentId;
-    var summaryEl = document.getElementById('student-portal-summary');
-    var gridEl = document.getElementById('student-portal-grid');
-    if (!summaryEl || !gridEl) return;
-
-    if (!studentId || !window.PortalDataService) {
-      summaryEl.innerHTML = '';
-      gridEl.innerHTML = '';
-      return;
-    }
-
-    var attRes = PortalDataService.getAttendanceSummary(studentId);
-    var feeRes = PortalDataService.getFeeSummary(studentId);
-    var examHistRes = PortalDataService.getExamHistory(studentId);
-    summaryEl.innerHTML = spdSummaryHTML(attRes, feeRes, examHistRes);
-
-    var resultsByKey = {
-      attendance: attRes,
-      fees: feeRes,
-      receipts: PortalDataService.getReceipts(studentId),
-      examresults: examHistRes,
-      reportcards: PortalDataService.getPublishedReportCards(studentId),
-      homework: PortalDataService.getHomework(studentId),
-      leave: PortalDataService.getLeaveSummary(studentId),
-      communication: PortalDataService.getUnreadCount(studentId),
-      transport: PortalDataService.getTransport(studentId)
-    };
-
-    gridEl.innerHTML = SPD_MODULES.map(function (mod) {
-      if (mod.kind === 'current' || mod.kind === 'soon') return spdCardHTML(mod, null);
-      var res = resultsByKey[mod.key];
-      var statusInfo = spdStatus(res);
-      if (mod.key === 'transport') return spdTransportCardHTML(res, statusInfo);
-      return spdCardHTML(mod, statusInfo);
-    }).join('');
-  }
-
-  /** Dispatch for every "Open" button in the module grid. Launches the
-   *  existing shared Parent Portal viewer via its existing entry point;
-   *  Report Cards / Leave additionally deep-link into that viewer's own
-   *  existing tab-switch function. No new page, no new controller. */
-  global.spdOpenModule = function (key) {
-    switch (key) {
-      case 'attendance':
-        if (window.parentOpenAttendance) parentOpenAttendance();
-        break;
-      case 'fees':
-      case 'receipts':
-        if (window.parentOpenFees) parentOpenFees();
-        break;
-      case 'examresults':
-        if (window.parentOpenExams) parentOpenExams();
-        break;
-      case 'reportcards':
-        if (window.parentOpenExams) {
-          parentOpenExams();
-          if (window.pxvSwitchTab) {
-            pxvSwitchTab('reportcards', document.querySelector('#pxv-tabs .tab[data-tab="reportcards"]'));
-          }
-        }
-        break;
-      case 'leave':
-        if (window.parentOpenCommunication) {
-          parentOpenCommunication();
-          if (window.pcvSwitchTab) {
-            pcvSwitchTab('leave', document.querySelector('#pcv-tabs .tab[data-tab="leave"]'));
-          }
-        }
-        break;
-      case 'communication':
-        if (window.parentOpenCommunication) parentOpenCommunication();
-        break;
-      case 'homework':
-        if (window.parentOpenCommunication) parentOpenCommunication();
-        break;
-      default:
-        break;
-    }
-  };
-
-  /** Toggle for the Transport card's inline detail panel (see note above
-   *  spdTransportCardHTML) — purely a display toggle, no data re-fetch. */
-  global.spdToggleTransport = function (btn) {
-    var card = btn.closest ? btn.closest('.student-portal-card') : null;
-    var detail = card ? card.querySelector('.student-portal-transport-detail') : null;
-    if (!detail) return;
-    var showing = detail.style.display !== 'none';
-    detail.style.display = showing ? 'none' : 'block';
-    btn.textContent = showing ? 'View Details' : 'Hide Details';
   };
 
   global.studentDoLogout = function () {
@@ -47104,35 +45985,18 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
   // (see file header). Always available:false, never crashes.
   // =========================================================
 
-  /** Reads Repository.homework, scoped to the student's own
-   *  cls/div/academicYear (plain strings, matching student.cls/
-   *  student.div/student.acyr — no new ID scheme). Homework is
-   *  class/division/year scoped, not per-student, so studentId alone
-   *  is never used as the data filter — only to resolve the student
-   *  via the existing findStudent() and to run the unchanged gate. */
-  function homeworkForStudent(studentId) {
-    var student = findStudent(studentId);
-    if (!student) return [];
-    var all = safe(function () { return Dnyanankur.Repository.homework.getAll(); }, []);
-    return all.filter(function (r) {
-      return r.cls === student.cls && r.div === student.div && r.academicYear === student.acyr;
-    });
-  }
-
   function getHomework(studentId) {
     var gate = gateStudent('Homework', studentId);
     if (!gate.ok) return gate.result;
-    return ok({ homework: homeworkForStudent(studentId) });
+    log('Missing Module', 'Homework');
+    return unavailable('Homework module not available yet.');
   }
 
   function getHomeworkSummary(studentId) {
     var gate = gateStudent('Homework', studentId);
     if (!gate.ok) return gate.result;
-    var items = homeworkForStudent(studentId);
-    var pendingCount = items.filter(function (h) { return h.status === 'Pending'; }).length;
-    var today = new Date().toISOString().slice(0, 10);
-    var dueTodayCount = items.filter(function (h) { return h.dueDate === today; }).length;
-    return ok({ homework: items, pendingCount: pendingCount, dueTodayCount: dueTodayCount });
+    log('Missing Module', 'Homework');
+    return unavailable('Homework module not available yet.');
   }
 
   // =========================================================
@@ -47285,21 +46149,7 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
    *  ONLY place that rule is applied, so every read below stays in sync.
    *  No grade/rank/percentage/publish math is invented — isPublished is
    *  read exactly as Result Processing wrote it. */
-  // [Result Visibility Deadline] exam.resultVisibleUntil is an OPTIONAL
-  // 'YYYY-MM-DD' string. Missing/null/empty means "no expiry" — existing
-  // exams and existing behavior are unchanged. When present, portal
-  // visibility additionally requires today <= resultVisibleUntil (same
-  // plain-string date comparison PortalAccessEngine.getActiveOverride()
-  // already uses). This does NOT unpublish, lock, or modify the exam —
-  // exam.isPublished/publishedAt/isLocked are untouched; only what this
-  // gate returns to Student/Parent Portal reads changes.
-  function isExamPublished(exam) {
-    if (!(exam && exam.isPublished === true)) return false;
-    var deadline = exam.resultVisibleUntil;
-    if (!deadline) return true;
-    var today = new Date().toISOString().slice(0, 10);
-    return today <= deadline;
-  }
+  function isExamPublished(exam) { return !!(exam && exam.isPublished === true); }
 
   function getExamSummary(studentId) {
     var gate = gateStudent('Exam Results', studentId);
@@ -47730,16 +46580,14 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
   // thin reshape of that existing call, not a new read.
   // =========================================================
 
-  /** Thin peer to getHomework() above. No caller in this codebase
-   *  establishes a distinct "history" meaning (e.g. past-due only,
-   *  completed only) separate from the current class/division/year
-   *  scoped list, so this returns the same filtered dataset for now
-   *  via the existing response contract. A real distinction can be
-   *  introduced in a later phase once a product requirement exists. */
+  /** Thin peer to getHomeworkSummary() above — same "no Homework
+   *  Engine exists yet" stub, kept separate only because the PP-0.9
+   *  brief names getHomeworkHistory() as its own method signature. */
   function getHomeworkHistory(studentId) {
     var gate = gateStudent('Homework', studentId);
     if (!gate.ok) return gate.result;
-    return ok({ homework: homeworkForStudent(studentId) });
+    log('Missing Module', 'Homework');
+    return unavailable('Homework history is not available yet.');
   }
 
   /** ANNOUNCEMENTS — no dedicated "Announcements" rule exists in
@@ -47814,21 +46662,17 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
    *  already exposes into one read-only timeline, tagged by the
    *  PP-0.9 brief's own type list (Homework / Circular / Notice /
    *  Exam / Attendance / Fee / Transport / General). Sources with no
-   *  real content store yet (Circulars, Announcements, Downloads,
-   *  Certificates) simply contribute nothing — they are not invented.
-   *  Exam, Fees, and (as of H6) Homework already have real, published
-   *  data and are the sources that populate real rows today; Leave
-   *  applications are folded in under type 'General' since the brief's
-   *  type list has no dedicated Leave entry. Each row's read/unread
-   *  state is read from the portalNotificationState repository
-   *  (PP-0.9), keyed by a stable notificationId derived from the
-   *  source record — no message content is stored in that repository,
-   *  only the open flag, per its own file header. Homework rows use a
-   *  per-child notificationId ('homework:'+studentId+':'+h.id, H6) —
-   *  homework is class/division scoped, not per-student, so without the
-   *  studentId component two siblings in the same class would share one
-   *  notificationId and opening it for one child would incorrectly mark
-   *  it read for the other. */
+   *  real content store yet (Homework, Circulars, Announcements,
+   *  Downloads, Certificates) simply contribute nothing — they are
+   *  not invented. Exam and Fees already have real, published data
+   *  (Examination Center / Finance Module) and are the only sources
+   *  that populate real rows today; Leave applications are folded in
+   *  under type 'General' since the brief's type list has no
+   *  dedicated Leave entry. Each row's read/unread state is read
+   *  from the new portalNotificationState repository (PP-0.9), keyed
+   *  by a stable notificationId derived from the source record — no
+   *  message content is stored in that repository, only the open
+   *  flag, per its own file header. */
   function getCommunicationHistory(studentId) {
     var gate = gateStudent('Communication', studentId);
     if (!gate.ok) return gate.result;
@@ -47851,23 +46695,6 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
         rows.push({
           date: e.startDate || e.endDate || null, sender: 'Examination Center',
           type: 'Exam', title: (e.examName || 'Examination') + ' — Result Published',
-          status: readStatus(nid), notificationId: nid
-        });
-      });
-    }
-
-    // H6 — Homework rows. Sourced from the existing gated getHomework()
-    // (H2), which already scopes records to this student's cls/div/
-    // academicYear. notificationId is per-child ('homework:'+studentId+
-    // ':'+h.id — see file header) so siblings in the same class never
-    // share read state for the same homework record.
-    var hwRes = getHomework(studentId);
-    if (hwRes.success && hwRes.homework) {
-      hwRes.homework.forEach(function (h) {
-        var nid = 'homework:' + studentId + ':' + h.id;
-        rows.push({
-          date: h.createdAt || null, sender: h.teacher || 'Teacher',
-          type: 'Homework', title: (h.subject || 'Homework') + ' — ' + (h.homework || 'New homework assigned'),
           status: readStatus(nid), notificationId: nid
         });
       });
@@ -47926,34 +46753,27 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
 
     return ok({
       history: rows,
-      note: 'Circulars, Announcements, Downloads, and Certificates have no content store yet (see file header) and contribute no rows until a future sprint adds them.'
+      note: 'Homework, Circulars, Announcements, Downloads, and Certificates have no content store yet (see file header) and contribute no rows until a future sprint adds them.'
     });
   }
 
   /** UNREAD COUNT — never recalculates anything; simply counts
    *  'Unread' rows already returned by getCommunicationHistory()
    *  plus every other module's own unread signal. Modules with no
-   *  content store yet (Circulars, Announcements, Downloads,
-   *  Certificates) always contribute 0 rather than being guessed at.
-   *  Homework (H6) reuses the same history rows rather than
-   *  recomputing a second notificationId formula — its count is just
-   *  those rows filtered to type 'Homework', so it can never disagree
-   *  with getCommunicationHistory() about which items are unread. */
+   *  content store yet (Homework, Circulars, Announcements,
+   *  Downloads, Certificates) always contribute 0 rather than being
+   *  guessed at. */
   function getUnreadCount(studentId) {
     var gate = gateStudent('Communication', studentId);
     if (!gate.ok) return gate.result;
 
     var historyRes = getCommunicationHistory(studentId);
-    var historyRows = (historyRes.success && historyRes.history) ? historyRes.history : [];
-    var historyUnread = historyRows.filter(function (r) { return r.status === 'Unread'; }).length;
-    // H6 — Homework's own count is a filter of the same rows/notificationIds
-    // getCommunicationHistory() already produced, not a second computation,
-    // so it can never drift out of sync with the history list above.
-    var homeworkUnread = historyRows.filter(function (r) { return r.type === 'Homework' && r.status === 'Unread'; }).length;
+    var historyUnread = (historyRes.success && historyRes.history)
+      ? historyRes.history.filter(function (r) { return r.status === 'Unread'; }).length : 0;
 
     return ok({
       counts: {
-        homework: homeworkUnread, circulars: 0, announcements: 0,
+        homework: 0, circulars: 0, announcements: 0,
         downloads: 0, certificates: 0,
         communicationHistory: historyUnread,
         total: historyUnread
@@ -48029,261 +46849,6 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
   }
 
   // =========================================================
-  // HOMEWORK H7 — STUDENT/PARENT SUBMISSIONS (additive)
-  // ------------------------------------------------------------
-  // Writes to the new Dnyanankur.Repository.homeworkSubmissions
-  // (Homework H7) via its existing BaseRepository API — no new
-  // storage mechanism, no WorkflowDB. One record per student/
-  // homework pair. Attachments live in their own namespace
-  // ('homework_submission_attachment_<id>'), completely separate
-  // from H5's teacher 'homework_attachment_<id>' namespace (Homework
-  // H3/H5, the Teacher Homework Authoring module), so H5's own
-  // budget/cleanup logic never sees or counts a student upload and
-  // this module never sees or counts a teacher upload.
-  //
-  // FileReader/DOM access never happens in this layer — same rule
-  // every other PortalDataService method already follows. The caller
-  // (pcvRenderHomework's controller) resolves a new file to a plain
-  // {dataUrl, name, type, size} object before calling submitHomework().
-  // =========================================================
-
-  var HW_SUB_ATTACHMENT_MAX_BYTES = 1 * 1024 * 1024;   // 1MB per file
-  var HW_SUB_ATTACHMENT_BUDGET_BYTES = 1 * 1024 * 1024; // 1MB total (H7 only — H5's 3MB teacher budget is untouched and counted separately)
-  // Same safe document/image allow-list H5 already established for
-  // teacher Homework attachments (see hwValidateAttachmentFile in the
-  // Homework H3/H5 authoring module) — reused as-is, not redefined
-  // differently for submissions.
-  var HW_SUB_ATTACHMENT_ALLOWED_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt'];
-  var HW_SUB_ATTACHMENT_STRICT_MIME = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', txt: 'text/plain' };
-
-  function submissionsRepo() {
-    return (global.Dnyanankur && Dnyanankur.Repository && Dnyanankur.Repository.homeworkSubmissions)
-      ? Dnyanankur.Repository.homeworkSubmissions : null;
-  }
-
-  /** Validates attachment metadata {name,type,size} already resolved by
-   *  the caller (no File object, no FileReader here — see file header).
-   *  Mirrors hwValidateAttachmentFile()'s extension + MIME cross-check,
-   *  sized to H7's own 1MB-per-file cap. Never trusts the <input accept>
-   *  attribute alone — this is the actual save-path re-check the brief
-   *  requires. */
-  function hwSubValidateAttachmentMeta(meta) {
-    if (!meta || !meta.name) return { ok: false, reason: 'No file selected.' };
-    if (Number(meta.size || 0) > HW_SUB_ATTACHMENT_MAX_BYTES) {
-      return { ok: false, reason: 'Attachment is larger than 1MB. Please choose a smaller file.' };
-    }
-    var name = meta.name || '';
-    var ext = (name.indexOf('.') !== -1) ? name.split('.').pop().toLowerCase() : '';
-    if (HW_SUB_ATTACHMENT_ALLOWED_EXT.indexOf(ext) === -1) {
-      return { ok: false, reason: 'File type not allowed. Allowed: PDF, JPG, PNG, WEBP, DOC(X), PPT(X), XLS(X), TXT.' };
-    }
-    var strictMime = HW_SUB_ATTACHMENT_STRICT_MIME[ext];
-    if (strictMime && meta.type && meta.type !== strictMime) {
-      return { ok: false, reason: 'File content does not match its extension.' };
-    }
-    return { ok: true };
-  }
-
-  /** Sums the size (approx bytes) of every 'homework_submission_attachment_*'
-   *  key already in localStorage — a completely separate budget from H5's
-   *  'homework_attachment_' teacher budget. NEVER counts a teacher
-   *  attachment; only counts this exact H7 prefix. */
-  function hwSubAttachmentTotalBytes() {
-    var total = 0;
-    try {
-      for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i);
-        if (k && k.indexOf('homework_submission_attachment_') === 0) {
-          var v = localStorage.getItem(k);
-          if (v) total += v.length;
-        }
-      }
-    } catch (e) { /* ignore — treated as 0, per-file cap above still applies */ }
-    return total;
-  }
-
-  function findSubmission(homeworkId, studentId) {
-    var repo = submissionsRepo();
-    if (!repo) return null;
-    return repo.find({ homeworkId: homeworkId, studentId: studentId });
-  }
-
-  /** Resolves the ONE Homework record this submission is against, from
-   *  the SAME student-scoped set homeworkForStudent()/getHomework()
-   *  already return (cls/div/academicYear filtered) — never trusts a
-   *  client-supplied homeworkId by itself, per the brief's PORTAL WRITE
-   *  SECURITY rule. */
-  function resolveAuthorizedHomework(studentId, homeworkId) {
-    var items = homeworkForStudent(studentId);
-    return items.filter(function (h) { return String(h.id) === String(homeworkId); })[0] || null;
-  }
-
-  /** Submission before/on due date -> Submitted; after -> Late. Applied
-   *  fresh at submission time (including resubmission), never silently
-   *  rejected — the teacher must be able to see the Late state. */
-  function hwSubStatusForNow(dueDate) {
-    var today = new Date().toISOString().slice(0, 10);
-    if (dueDate && today > dueDate) return 'Late';
-    return 'Submitted';
-  }
-
-  /** READ — this student's own submission for one Homework record, or
-   *  null if none exists yet. Both the gate and the homeworkId
-   *  authorization check below make it impossible to reach another
-   *  student's or another class/division/year's submission. */
-  function getHomeworkSubmission(studentId, homeworkId) {
-    var gate = gateStudent('Homework', studentId);
-    if (!gate.ok) return gate.result;
-
-    var homework = resolveAuthorizedHomework(studentId, homeworkId);
-    if (!homework) {
-      log('Invalid Homework', 'homeworkId ' + homeworkId + ' not in scope for student ' + studentId);
-      return fail('Homework Not Found');
-    }
-
-    var repo = submissionsRepo();
-    if (!repo) return unavailable('Submissions not available yet.');
-
-    return ok({ submission: findSubmission(homeworkId, studentId) || null });
-  }
-
-  /** WRITE — create or resubmit a Homework submission for `studentId`
-   *  against `homeworkId`. `payload`:
-   *    { responseText: string|null,
-   *      attachment: { dataUrl, name, type, size } | null,  // a NEW file, already read by the caller
-   *      removeAttachment: boolean }                        // explicit removal, no new file
-   *
-   *  Every authorization step below runs before anything is read from
-   *  or written to storage:
-   *    1. gateStudent('Homework', studentId)      — session/linkage/scope
-   *    2. resolveAuthorizedHomework(studentId, id) — homeworkId really
-   *       belongs to this student's own class/division/academic-year set
-   *    3. existing.status !== 'Reviewed'          — locked submissions
-   *       can never be overwritten by the portal
-   *  parentId is always session.parentId from gateStudent()'s own
-   *  session — never accepted from the caller. */
-  function submitHomework(studentId, homeworkId, payload) {
-    var gate = gateStudent('Homework', studentId);
-    if (!gate.ok) return gate.result;
-
-    var repo = submissionsRepo();
-    if (!repo) return unavailable('Submissions not available yet.');
-
-    var homework = resolveAuthorizedHomework(studentId, homeworkId);
-    if (!homework) {
-      log('Invalid Homework', 'homeworkId ' + homeworkId + ' not in scope for student ' + studentId);
-      return fail('Homework Not Found');
-    }
-
-    payload = payload || {};
-    var responseText = (payload.responseText || '').toString().trim();
-    var newAttachment = payload.attachment || null;
-    var removeAttachment = !!payload.removeAttachment;
-
-    var existing = findSubmission(homeworkId, studentId);
-    if (existing && existing.status === 'Reviewed') {
-      return fail('This submission has already been reviewed and can no longer be changed.');
-    }
-
-    // ── Resolve final attachment fields (validate BEFORE reading/storing) ──
-    var attachmentFields;
-    var oldAttachmentId = existing ? existing.attachmentId : null;
-
-    if (newAttachment) {
-      var check = hwSubValidateAttachmentMeta(newAttachment);
-      if (!check.ok) return fail(check.reason);
-
-      // Budget check happens before the file is stored. If this upload
-      // replaces an existing submission attachment, that old attachment's
-      // bytes are excluded from the running total since it will be
-      // deleted as part of this same save.
-      var currentTotal = hwSubAttachmentTotalBytes();
-      if (oldAttachmentId) {
-        var oldStored = null;
-        try { oldStored = Dnyanankur.Storage.get('homework_submission_attachment_' + oldAttachmentId); } catch (e) { oldStored = null; }
-        if (oldStored && oldStored.data) currentTotal -= String(oldStored.data).length;
-      }
-      if (currentTotal < 0) currentTotal = 0;
-      if (currentTotal + Number(newAttachment.size || 0) > HW_SUB_ATTACHMENT_BUDGET_BYTES) {
-        return fail('Homework submission attachment storage limit reached (1MB total). Please remove an older attachment before adding a new one.');
-      }
-
-      // A random suffix (not just Date.now()) guards against two uploads
-      // landing in the same millisecond generating the same id — the
-      // brief's "never reuse another record's attachment ID" rule.
-      var newAttachmentId = 'HWSA' + Date.now() + Math.floor(Math.random() * 1000000);
-      var stored = null;
-      try {
-        stored = Dnyanankur.Storage.set('homework_submission_attachment_' + newAttachmentId, {
-          data: newAttachment.dataUrl, name: newAttachment.name, type: newAttachment.type || '', size: newAttachment.size
-        });
-      } catch (e) { stored = false; }
-      if (!stored) return fail('Could not save the attachment (storage may be full).');
-
-      if (oldAttachmentId) {
-        try { Dnyanankur.Storage.remove('homework_submission_attachment_' + oldAttachmentId); } catch (e) { /* best-effort cleanup — new attachment is already saved */ }
-      }
-
-      attachmentFields = {
-        attachmentId: newAttachmentId, attachmentName: newAttachment.name,
-        attachmentType: newAttachment.type || '', attachmentSize: newAttachment.size
-      };
-    } else if (removeAttachment) {
-      if (oldAttachmentId) {
-        try { Dnyanankur.Storage.remove('homework_submission_attachment_' + oldAttachmentId); } catch (e) { /* best-effort cleanup */ }
-      }
-      attachmentFields = { attachmentId: null, attachmentName: null, attachmentType: null, attachmentSize: null };
-    } else if (existing) {
-      // No new file, no removal requested — preserve whatever attachment
-      // (if any) the record already had, untouched. Mirrors H5's own
-      // hwAuthorSave() rule for the teacher-side authoring form.
-      attachmentFields = {
-        attachmentId: existing.attachmentId || null, attachmentName: existing.attachmentName || null,
-        attachmentType: existing.attachmentType || null, attachmentSize: existing.attachmentSize || null
-      };
-    } else {
-      attachmentFields = { attachmentId: null, attachmentName: null, attachmentType: null, attachmentSize: null };
-    }
-
-    var hasText = !!responseText;
-    var hasAttachment = !!attachmentFields.attachmentId;
-    if (!hasText && !hasAttachment) {
-      return fail('Please provide a response, an attachment, or both before submitting.');
-    }
-
-    var nowIso = new Date().toISOString();
-    var status = hwSubStatusForNow(homework.dueDate);
-
-    if (existing) {
-      var updated = repo.update(existing.id, Object.assign({
-        responseText: responseText || null,
-        updatedAt: nowIso,
-        status: status
-      }, attachmentFields));
-      if (!updated) return fail('Could not update submission.');
-      return ok({ submission: updated });
-    }
-
-    // One submission per student+homework — searched above via
-    // findSubmission() before this create path is ever reached, so no
-    // duplicate row can be created for the same pair.
-    var record = Object.assign({
-      id: 'HWSUB' + Date.now(),
-      homeworkId: homeworkId,
-      studentId: studentId,
-      parentId: gate.session.parentId,
-      responseText: responseText || null,
-      submittedAt: nowIso,
-      updatedAt: nowIso,
-      status: status
-    }, attachmentFields);
-
-    var saved = repo.create(record);
-    if (!saved) return fail('Could not save submission.');
-    return ok({ submission: saved });
-  }
-
-  // =========================================================
   // PUBLIC API
   // =========================================================
   global.PortalDataService = {
@@ -48324,10 +46889,7 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
     getCertificates: getCertificates,
     getLeaveApplications: getLeaveApplications,
     getCommunicationHistory: getCommunicationHistory,
-    getUnreadCount: getUnreadCount,
-    // Homework H7 additions
-    submitHomework: submitHomework,
-    getHomeworkSubmission: getHomeworkSubmission
+    getUnreadCount: getUnreadCount
   };
 
   if (global.Dnyanankur && Dnyanankur.Logger) {
@@ -49685,17 +48247,10 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
   }
 
   // ---- HOMEWORK TAB ----
-  // H7 EXTENSION (documented per H1–H6 PROTECTION rule): this function's
-  // original H1–H6 body (getHomework() fetch, filter dropdown, subject/
-  // teacher/homework/dueDate/attachment/status columns) is unchanged
-  // below. The only additions are: (1) a 7th "My Submission" column per
-  // row, (2) a per-row expandable H7 submission form fed by the new
-  // PortalDataService.getHomeworkSubmission(), and (3) colspan 6 -> 7 in
-  // every emptyRow() call, to match the new column added in index.html.
   window.pcvRenderHomework = function () {
     var res = PortalDataService.getHomework(state.studentId);
-    if (!res.success) { emptyRow('pcv-hw-body', 7, res.reason || res.message || 'Unable to load homework.'); return; }
-    if (res.available === false) { emptyRow('pcv-hw-body', 7, res.message || 'No homework assigned.'); return; }
+    if (!res.success) { emptyRow('pcv-hw-body', 6, res.reason || res.message || 'Unable to load homework.'); return; }
+    if (res.available === false) { emptyRow('pcv-hw-body', 6, res.message || 'No homework assigned.'); return; }
 
     var items = res.homework || [];
     var filter = (document.getElementById('pcv-hw-filter') || {}).value || 'all';
@@ -49708,193 +48263,18 @@ window.DocumentsBridge.getCategories = () => DB.getCategories();
     else if (filter === 'completed') items = items.filter(function (h) { return h.status === 'Completed'; });
     else if (filter === 'pending') items = items.filter(function (h) { return h.status === 'Pending'; });
 
-    if (!items.length) { emptyRow('pcv-hw-body', 7, 'No homework assigned.'); return; }
+    if (!items.length) { emptyRow('pcv-hw-body', 6, 'No homework assigned.'); return; }
 
     document.getElementById('pcv-hw-body').innerHTML = items.map(function (h) {
-      var attCell = '—';
-      if (h.attachmentId) {
-        var safeId = esc(h.attachmentId);
-        var safeName = esc(h.attachmentName || 'attachment');
-        var shortName = (h.attachmentName && h.attachmentName.length > 16) ? (h.attachmentName.slice(0, 13) + '…') : (h.attachmentName || '');
-        attCell = '<div style="display:flex;flex-direction:column;gap:2px;">' +
-          '<button class="btn btn-outline btn-sm" onclick="pcvDownloadHomeworkAttachment(\'' + safeId + '\',\'' + safeName + '\')">⬇ Download</button>' +
-          '<span style="font-size:11px;color:#777;" title="' + safeName + '">' + esc(shortName) + '</span>' +
-          '</div>';
-      }
-
-      // ── H7: My Submission cell + expandable submit/resubmit form ────
-      // Sourced from the new PortalDataService.getHomeworkSubmission() —
-      // does not touch getHomework()'s own contract, fields, or filtering
-      // above in any way.
-      var hid = esc(h.id);
-      var subRes = PortalDataService.getHomeworkSubmission(state.studentId, h.id);
-      var sub = (subRes && subRes.success) ? subRes.submission : null;
-      var subCell, subFormRow;
-
-      if (sub && sub.status === 'Reviewed') {
-        subCell = '<span class="badge" style="background:#eef2f7;color:#1a3a6b;">Reviewed</span>';
-        subFormRow = '';
-      } else {
-        var subStatusLabel = sub ? (sub.status === 'Late' ? 'Late' : 'Submitted') : 'Not Submitted';
-        var subBadgeStyle = sub ? (sub.status === 'Late' ? 'background:#fbe9e7;color:#c0392b;' : 'background:#e8f5ec;color:#1a6b3c;') : 'background:#eee;color:#555;';
-        var actionLabel = sub ? 'Resubmit' : 'Submit Homework';
-
-        subCell = '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start;">' +
-          '<span class="badge" style="' + subBadgeStyle + '">' + subStatusLabel + '</span>' +
-          '<button class="btn btn-outline btn-sm" onclick="pcvToggleHomeworkSubmission(\'' + hid + '\')">' + actionLabel + '</button>' +
-          '</div>';
-
-        var currentAttHTML = '';
-        if (sub && sub.attachmentId) {
-          var sSafeId = esc(sub.attachmentId), sSafeName = esc(sub.attachmentName || 'attachment');
-          currentAttHTML = '<div id="pcv-hw-sub-current-att-' + hid + '" style="margin:6px 0;font-size:13px;">' +
-            '📎 <span>' + sSafeName + '</span> ' +
-            '<button type="button" class="btn btn-outline btn-sm" onclick="pcvDownloadHomeworkSubmissionAttachment(\'' + sSafeId + '\',\'' + sSafeName + '\')">⬇ Download</button> ' +
-            '<button type="button" class="btn btn-outline btn-sm" onclick="pcvRemoveHomeworkSubmissionAttachment(\'' + hid + '\')">Remove</button>' +
-            '</div>';
-        }
-
-        subFormRow = '<tr class="pcv-hw-subrow" id="pcv-hw-subrow-' + hid + '" style="display:none;">' +
-          '<td colspan="7">' +
-          '<div class="card" style="margin:0;">' +
-          '<label style="font-size:12.5px;">Your Response</label>' +
-          '<textarea id="pcv-hw-sub-text-' + hid + '" rows="3" style="width:100%;">' + esc((sub && sub.responseText) || '') + '</textarea>' +
-          currentAttHTML +
-          '<label style="font-size:12.5px;margin-top:6px;display:block;">Attachment (optional, max 1MB — PDF, JPG, PNG, WEBP, DOC(X), PPT(X), XLS(X), TXT)</label>' +
-          '<input type="file" id="pcv-hw-sub-file-' + hid + '" accept="application/pdf,image/jpeg,image/png,image/webp,.doc,.docx,.ppt,.pptx,.xls,.xlsx,text/plain"/>' +
-          '<div style="margin-top:10px;display:flex;gap:8px;">' +
-          '<button class="btn btn-primary btn-sm" onclick="pcvSubmitHomework(\'' + hid + '\')">' + actionLabel + '</button>' +
-          '<button class="btn btn-outline btn-sm" onclick="pcvToggleHomeworkSubmission(\'' + hid + '\')">Cancel</button>' +
-          '</div>' +
-          '</div>' +
-          '</td></tr>';
-      }
-
       return '<tr>' +
         '<td>' + (h.subject || '—') + '</td>' +
         '<td>' + (h.teacher || '—') + '</td>' +
         '<td>' + (h.homework || h.description || '—') + '</td>' +
         '<td>' + fmtDate(h.dueDate) + '</td>' +
-        '<td>' + attCell + '</td>' +
+        '<td>' + (h.attachment ? '<button class="btn btn-outline btn-sm" disabled title="Coming Soon">⬇ Download</button>' : '—') + '</td>' +
         '<td>' + badge(h.status, STATUS_COLORS) + '</td>' +
-        '<td>' + subCell + '</td>' +
-        '</tr>' + subFormRow;
+        '</tr>';
     }).join('');
-  };
-
-  /* ── Homework H7: Submission controls (additive) ────────────────────
-     DOM wiring only — every write goes through the new
-     PortalDataService.submitHomework(), which performs every
-     authorization/validation/storage step itself, exactly the same
-     division of responsibility this whole file already follows (see
-     file header: "Every data value on this page comes from
-     PortalDataService"). FileReader lives HERE, never inside
-     PortalDataService, mirroring H5's teacher-side hwReadFileAsAttachment
-     pattern in the Homework H3 authoring module. */
-
-  window.pcvToggleHomeworkSubmission = function (homeworkId) {
-    var row = document.getElementById('pcv-hw-subrow-' + homeworkId);
-    if (!row) return;
-    var showing = row.style.display !== 'none';
-    row.style.display = showing ? 'none' : 'table-row';
-  };
-
-  /** Marks the currently-loaded submission attachment for removal on the
-   *  next Submit/Resubmit (same "flag now, act on save" pattern as H5's
-   *  hwAuthorRemoveAttachment in the Teacher Homework Authoring module)
-   *  — actual deletion happens inside PortalDataService.submitHomework(). */
-  window.pcvRemoveHomeworkSubmissionAttachment = function (homeworkId) {
-    var fileEl = document.getElementById('pcv-hw-sub-file-' + homeworkId);
-    if (fileEl) fileEl.setAttribute('data-remove-requested', '1');
-    var wrap = document.getElementById('pcv-hw-sub-current-att-' + homeworkId);
-    if (wrap) wrap.style.display = 'none';
-  };
-
-  /** Retrieves and downloads a Homework SUBMISSION attachment. Namespace
-   *  ('homework_submission_attachment_') is completely separate from H5's
-   *  teacher 'homework_attachment_' namespace pcvDownloadHomeworkAttachment()
-   *  reads above — never crosses into that prefix. The id only ever comes
-   *  from a submission already returned by PortalDataService
-   *  .getHomeworkSubmission() (gated/scoped to this student), never from a
-   *  URL or user-entered value. Missing/corrupt storage shows "Attachment
-   *  unavailable" rather than throwing, per the brief's ERROR HANDLING rule. */
-  window.pcvDownloadHomeworkSubmissionAttachment = function (attachmentId, displayName) {
-    if (!attachmentId) return;
-    var stored = null;
-    try { stored = Dnyanankur.Storage.get('homework_submission_attachment_' + attachmentId); } catch (e) { stored = null; }
-    if (!stored || !stored.data) {
-      if (typeof showToast === 'function') showToast('Attachment unavailable.', 'error'); else alert('Attachment unavailable.');
-      return;
-    }
-    var a = document.createElement('a');
-    a.href = stored.data;
-    a.download = stored.name || displayName || 'attachment';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  };
-
-  /** Submit/Resubmit handler for the H7 inline submission form. Reads
-   *  the textarea + optional file input for this homework item, resolves
-   *  any new file to a data URL, then hands a plain payload to
-   *  PortalDataService.submitHomework() — every authorization/validation/
-   *  storage/lock/duplicate-prevention step happens there, not here. */
-  window.pcvSubmitHomework = function (homeworkId) {
-    var textEl = document.getElementById('pcv-hw-sub-text-' + homeworkId);
-    var fileEl = document.getElementById('pcv-hw-sub-file-' + homeworkId);
-    var responseText = textEl ? (textEl.value || '') : '';
-    var file = (fileEl && fileEl.files && fileEl.files[0]) ? fileEl.files[0] : null;
-    var removeAttachment = !!(fileEl && fileEl.getAttribute('data-remove-requested') === '1');
-
-    function finish(payload) {
-      var res = PortalDataService.submitHomework(state.studentId, homeworkId, payload);
-      if (!res || !res.success) {
-        var msg = (res && (res.reason || res.message)) || 'Could not submit homework.';
-        if (typeof showToast === 'function') showToast(msg, 'error'); else alert(msg);
-        return;
-      }
-      if (typeof showToast === 'function') showToast('Homework submitted.');
-      pcvRenderHomework();
-    }
-
-    if (file) {
-      var reader = new FileReader();
-      reader.onload = function (e) {
-        finish({
-          responseText: responseText,
-          attachment: { dataUrl: e.target.result, name: file.name, type: file.type || '', size: file.size }
-        });
-      };
-      reader.onerror = function () {
-        if (typeof showToast === 'function') showToast('Could not read the attachment file.', 'error'); else alert('Could not read the attachment file.');
-      };
-      reader.readAsDataURL(file);
-      return; // async — finish() completes the submission once the file is read
-    }
-
-    finish({ responseText: responseText, removeAttachment: removeAttachment });
-  };
-
-  /** Retrieves and downloads a Homework attachment by id. The id only
-   *  ever comes from a record already returned by PortalDataService
-   *  .getHomework() (H2 — per-student gated/scoped), never from a URL
-   *  or user-entered value, so this cannot be used to reach another
-   *  student's or another class's attachment. Missing/corrupt storage
-   *  is handled gracefully (toast, no throw). */
-  window.pcvDownloadHomeworkAttachment = function (attachmentId, displayName) {
-    if (!attachmentId) return;
-    var stored = null;
-    try { stored = Dnyanankur.Storage.get('homework_attachment_' + attachmentId); } catch (e) { stored = null; }
-    if (!stored || !stored.data) {
-      if (typeof showToast === 'function') showToast('Attachment unavailable.', 'error'); else alert('Attachment unavailable.');
-      return;
-    }
-    var a = document.createElement('a');
-    a.href = stored.data;
-    a.download = stored.name || displayName || 'attachment';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
   };
 
   // ---- CIRCULARS TAB ----
