@@ -197,10 +197,6 @@
     <div class="nav-item" data-roles="principal,clerk,teacher" onclick="showPage('attendance-main')"><span class="icon">🗓️</span>Attendance</div>
   </div>
   <div class="nav-section">
-    <div class="nav-label">Homework</div>
-    <div class="nav-item" data-roles="principal,teacher" onclick="showPage('homework')"><span class="icon">📘</span>Homework</div>
-  </div>
-  <div class="nav-section">
     <div class="nav-label">Documents</div>
     <div class="nav-item" data-roles="principal" onclick="showPage('bonafide')"><span class="icon">📄</span>Bonafide Certificate</div>
     <div class="nav-item" data-roles="principal" onclick="showPage('tc')"><span class="icon">🚪</span>Leaving Certificate</div>
@@ -332,8 +328,8 @@
          teacher, student, parent. No self-registration: Principal creates
          every account (Task 2). -->
     <div class="form-group" style="margin-bottom:14px;">
-      <label>Username</label>
-      <input type="text" id="login-email" autocomplete="username" placeholder="e.g. principal"/>
+      <label>Email</label>
+      <input type="email" id="login-email" autocomplete="username" placeholder="you@school.edu"/>
     </div>
     <div class="form-group" style="margin-bottom:8px;">
       <label>Password</label>
@@ -397,9 +393,9 @@
      same four portal viewers the Parent Portal uses, scoped by
      PortalDataService to this student alone. ── -->
 <div id="page-student-home" style="display:none;position:fixed;inset:0;background:var(--cream);align-items:flex-start;justify-content:center;z-index:200;overflow-y:auto;">
-  <div class="student-portal-dashboard" style="max-width:1080px;width:100%;margin:40px 20px 60px;">
+  <div style="max-width:760px;width:100%;margin:40px 20px 60px;">
 
-    <div class="student-portal-header">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
       <div>
         <h1 class="serif" style="font-size:22px;color:var(--navy);margin:0;">Student Portal</h1>
         <p style="color:#888;font-size:12.5px;margin-top:2px;">Read Only · <span id="student-home-year">—</span></p>
@@ -417,20 +413,18 @@
       </div>
     </div>
 
+    <div class="card" style="margin-top:14px;">
+      <div class="card-title">My School Record</div>
+      <button class="btn btn-primary" style="margin-top:6px;" onclick="parentOpenAttendance()">📅 My Attendance</button>
+      <button class="btn btn-gold" style="margin-top:6px;margin-left:8px;" onclick="parentOpenFees()">💰 My Fees &amp; Receipts</button>
+      <button class="btn btn-gold" style="margin-top:6px;margin-left:8px;" onclick="parentOpenExams()">🎓 My Examinations</button>
+      <button class="btn btn-gold" style="margin-top:6px;margin-left:8px;" onclick="parentOpenCommunication()">💬 Notices &amp; Messages</button>
+    </div>
+
     <div id="student-home-notice" class="info-bar" style="margin-top:14px;display:none;">
       <span>ℹ️</span>
       <span class="info-bar-text" id="student-home-notice-text"></span>
     </div>
-
-    <!-- PHASE A — Summary Strip. Populated by spdRenderDashboard() in
-         js/app.js from PortalDataService only; no values are hard-coded. -->
-    <div class="student-portal-summary" id="student-portal-summary"></div>
-
-    <!-- PHASE A — Module Grid. Populated by spdRenderDashboard() in
-         js/app.js; each card's status/action reflects the real
-         PortalDataService/PortalAccessEngine result for that module. -->
-    <div class="student-portal-grid" id="student-portal-grid"></div>
-
   </div>
 </div>
 
@@ -1013,8 +1007,8 @@
           </div>
           <div class="table-wrap" style="margin-top:10px;">
             <table>
-              <thead><tr><th>Subject</th><th>Teacher</th><th>Homework</th><th>Due Date</th><th>Attachment</th><th>Status</th><th>My Submission</th></tr></thead>
-              <tbody id="pcv-hw-body"><tr><td colspan="7" style="text-align:center;color:#999;">No homework assigned.</td></tr></tbody>
+              <thead><tr><th>Subject</th><th>Teacher</th><th>Homework</th><th>Due Date</th><th>Attachment</th><th>Status</th></tr></thead>
+              <tbody id="pcv-hw-body"><tr><td colspan="6" style="text-align:center;color:#999;">No homework assigned.</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -3917,108 +3911,6 @@ margin-bottom:15px;
   </div>
 </div>
 
-<!-- HOMEWORK — H3 Teacher Authoring (additive; feeds the existing
-     Dnyanankur.Repository.homework store read by PortalDataService's
-     getHomework()/getHomeworkSummary()/getHomeworkHistory() — H1/H2,
-     unchanged). Principal: all class/division. Teacher: scoped to
-     currentUser.classAssignments via the existing AttEngine.canAccessClass(). -->
-<div class="page" id="page-homework">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-    <h1 class="serif" style="font-size:24px;color:var(--navy);">Homework</h1>
-  </div>
-
-  <div class="card" style="margin-bottom:20px;">
-    <h3 style="font-size:15px;margin-bottom:10px;">Assign Homework</h3>
-    <input type="hidden" id="hw-edit-id"/>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>Class *</label>
-        <select id="hw-class" onchange="hwAuthorOnClassChange()"></select>
-      </div>
-      <div class="form-group">
-        <label>Division *</label>
-        <select id="hw-div"></select>
-      </div>
-      <div class="form-group">
-        <label>Subject *</label>
-        <select id="hw-subject"></select>
-      </div>
-      <div class="form-group">
-        <label>Due Date *</label>
-        <input type="date" id="hw-duedate"/>
-      </div>
-      <div class="form-group" style="grid-column:1/-1;">
-        <label>Homework *</label>
-        <textarea id="hw-text" rows="3" style="width:100%;"></textarea>
-      </div>
-      <div class="form-group" style="grid-column:1/-1;">
-        <label>Attachment (optional, max 2MB — PDF, JPG, PNG, WEBP, DOC(X), PPT(X), XLS(X), TXT)</label>
-        <input type="file" id="hw-attachment" accept="application/pdf,image/jpeg,image/png,image/webp,.doc,.docx,.ppt,.pptx,.xls,.xlsx,text/plain"/>
-        <div id="hw-current-attachment" style="display:none;margin-top:6px;font-size:13px;color:var(--navy);">
-          📎 <span id="hw-current-attachment-name"></span>
-          <button type="button" class="btn btn-outline btn-sm" id="hw-remove-attachment-btn" onclick="hwAuthorRemoveAttachment()">Remove</button>
-        </div>
-      </div>
-    </div>
-    <div style="margin-top:12px;display:flex;gap:8px;">
-      <button class="btn btn-primary" onclick="hwAuthorSave()">Save Homework</button>
-      <button class="btn btn-outline" id="hw-cancel-edit-btn" style="display:none;" onclick="hwAuthorResetForm()">Cancel Edit</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3 style="font-size:15px;margin-bottom:10px;">Assigned Homework</h3>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Class</th><th>Div</th><th>Subject</th><th>Homework</th>
-            <th>Due Date</th><th>Status</th><th>Teacher</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="hw-author-table-body"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- HOMEWORK H7 — SUBMISSIONS MODAL -->
-<!-- Additive only. Reuses the existing .modal-overlay/.modal chrome and
-     openModal()/closeModal() helpers already used by every other modal
-     in this file (e.g. INVENTORY MODAL below) — no new modal system. -->
-
-<div class="modal-overlay" id="modal-hw-submissions">
-
-  <div class="modal" style="max-width:900px;">
-
-    <h3 class="modal-title" id="hw-submissions-modal-title">
-      Submissions
-    </h3>
-
-    <input type="hidden" id="hw-submissions-modal-homework-id"/>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Student</th><th>Status</th><th>Submitted / Updated</th>
-            <th>Response</th><th>Attachment</th><th>Review</th>
-          </tr>
-        </thead>
-        <tbody id="hw-submissions-table-body"></tbody>
-      </table>
-    </div>
-
-    <div style="display:flex;gap:10px;margin-top:20px;">
-      <button class="btn btn-outline" onclick="hwAuthorCloseSubmissions()">
-        Close
-      </button>
-    </div>
-
-  </div>
-
-</div>
-
 <!-- INVENTORY MODAL -->
 
 <div class="modal-overlay" id="modal-inventory">
@@ -5380,7 +5272,7 @@ Package Total :
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Student</th><th>Module</th><th>Action</th><th>Reason</th><th>Start Date</th><th>End Date</th><th>Status</th><th>Actions</th></tr>
+            <tr><th>Student</th><th>Reason</th><th>Start Date</th><th>End Date</th><th>Status</th><th>Actions</th></tr>
           </thead>
           <tbody id="portal-overrides-body"></tbody>
         </table>
@@ -5467,11 +5359,8 @@ Package Total :
         <span class="info-bar-text">Live preview of the centralized Access Engine for a chosen parent, evaluated across every linked child. This is Test Mode — no parent login is used, and previewing here does not write to the Audit Log (only real, in-app access checks do).</span>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
-        <select id="pe-parent-select" style="flex:1;min-width:260px;padding:8px 12px;border:1.5px solid #ddd;border-radius:6px;font-size:13px;" onchange="portalPermissionsPopulateStudents();portalPermissionsRender();">
+        <select id="pe-parent-select" style="flex:1;min-width:260px;padding:8px 12px;border:1.5px solid #ddd;border-radius:6px;font-size:13px;" onchange="portalPermissionsRender()">
           <option value="">— Choose Parent —</option>
-        </select>
-        <select id="pe-student-select" style="flex:1;min-width:220px;padding:8px 12px;border:1.5px solid #ddd;border-radius:6px;font-size:13px;" onchange="portalPermissionsRender()" disabled>
-          <option value="">All Linked Children (worst-case)</option>
         </select>
         <button class="btn btn-outline btn-sm" onclick="portalPermissionsPopulateParents();portalPermissionsRender();">↻ Refresh</button>
       </div>
@@ -5499,17 +5388,6 @@ Package Total :
       <div class="form-group full">
         <label>Student</label>
         <select id="po-student"><option value="">Select Student</option></select>
-      </div>
-      <div class="form-group">
-        <label>Module</label>
-        <select id="po-module"><option value="">Whole Portal</option></select>
-      </div>
-      <div class="form-group">
-        <label>Action</label>
-        <select id="po-action">
-          <option value="ALLOW">Allow</option>
-          <option value="DENY">Deny</option>
-        </select>
       </div>
       <div class="form-group full">
         <label>Reason</label>
@@ -6185,18 +6063,6 @@ Package Total :
             <select id="rpClass" class="exam-select" onchange="examRPLoadStatus()"><option value="">All Classes</option></select>
           </div>
           <div class="exam-process-status" id="examRPStatus"></div>
-          <div class="exam-form-group" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;">
-            <div class="exam-form-group">
-              <label class="exam-label">Result Visible Until</label>
-              <input type="date" id="rpDeadline" class="exam-input" style="width:160px;"/>
-            </div>
-            <div class="exam-form-group" style="display:flex;align-items:center;gap:6px;">
-              <input type="checkbox" id="rpNoExpiry" onchange="examToggleNoExpiry()"/>
-              <label class="exam-label" for="rpNoExpiry" style="margin:0;">No expiry</label>
-            </div>
-            <button class="exam-btn exam-btn-primary" onclick="examSaveResultDeadline()">💾 Save</button>
-            <span id="rpDeadlineMsg" style="font-size:13px;"></span>
-          </div>
           <div class="exam-btn-group">
             <button id="rpComputeBtn" class="exam-btn exam-btn-primary" onclick="examProcessResults()">⚙ Compute Results</button>
             <span id="rpAdminActions">
@@ -6580,7 +6446,7 @@ Package Total :
     <div class="modal-footer" style="margin-top:12px;padding-top:12px;">
       <button class="btn btn-red btn-sm" onclick="rollbackImport()" id="rollback-btn">↩ Rollback This Import</button>
       <button class="btn btn-outline btn-sm" onclick="resetImport()">Import Another File</button>
-      <button class="btn btn-primary btn-sm" onclick="showPage('stats')">View Statistics</button>
+      <button class="btn btn-primary btn-sm" onclick="nav('stats')">View Statistics</button>
     </div>
   </div>
 
@@ -9158,7 +9024,7 @@ Package Total :
     <div id="modal-audit-body" style="max-height:400px;overflow-y:auto;"></div>
     <div class="ie-modal-footer">
       <button class="btn btn-ghost btn-sm" onclick="ieCloseModal('modal-audit')">Close</button>
-      <button class="btn btn-outline btn-sm" onclick="showPage('audit');ieCloseModal('modal-audit')">View Full Log</button>
+      <button class="btn btn-outline btn-sm" onclick="nav('audit');ieCloseModal('modal-audit')">View Full Log</button>
     </div>
   </div>
 </div>
